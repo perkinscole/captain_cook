@@ -259,9 +259,29 @@ func _build_from_model() -> bool:
 				_clips["look"] = clip
 			elif key.contains("idle"):
 				_clips["idle"] = clip
+	if _clips.has("climb"):
+		_hold_hips_still(_clips["climb"])
 	_standing = idle_clip
 	_play_clip(_standing)
 	return true
+
+
+## The climbing clip was recorded with the body travelling up and forward,
+## then jumping back at the end of each loop. Here the game moves the climber
+## along the shrouds itself, so the body is pinned where the clip starts and
+## only the arms and legs work.
+func _hold_hips_still(clip: String) -> void:
+	var animation := _player.get_animation(clip)
+	for track in animation.get_track_count():
+		if animation.track_get_type(track) != Animation.TYPE_POSITION_3D:
+			continue
+		if not String(animation.track_get_path(track)).ends_with(":Hips"):
+			continue
+		if animation.track_get_key_count(track) == 0:
+			continue
+		var start: Vector3 = animation.track_get_key_value(track, 0)
+		for key in animation.track_get_key_count(track):
+			animation.track_set_key_value(track, key, start)
 
 
 ## Starts the recorded clip for a purpose ("idle", "walk", "talk", ...),

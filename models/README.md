@@ -8,7 +8,7 @@ missing (see `scripts/models.gd`).
 
 | File | Used for |
 | --- | --- |
-| `seaman/seaman_actions.glb` | The leadsman, boatswain's mate and cook, and the hands who walk the deck |
+| `seaman/seaman_actions.glb` | The leadsman, boatswain's mate and cook, the hands who walk the deck, and the topmen who climb to the yards |
 | `characters/old_seaman/` | Trull, the quartermaster at the wheel |
 | `characters/ships_boy/` | Nicholas Young at the masthead |
 | `characters/cook/` | Captain Cook |
@@ -42,8 +42,7 @@ which are listed in `meshy_output/model_tasks.tsv`.
 
 ## Still built in code
 
-The decks, cabins and lower deck you walk on, masts, yards, sails and rigging,
-the topmen who climb to the yards, and Tupaia.
+The decks, cabins and lower deck you walk on, masts, yards, sails and rigging, and Tupaia.
 
 `meshy_output/` holds the reference pictures and rendered previews from each
 step. The dress and the fittings were described from memory of the period and

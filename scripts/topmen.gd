@@ -6,6 +6,10 @@ extends Node3D
 ## they are on the yard, so an order given late in a squall is a late sail.
 ##
 ## Child of the Ship, beside the ShipVisual it climbs.
+##
+## The hands are the modelled seaman, who climbs with a recorded ladder
+## climb, looks about him on the yard, and stands idle on deck. If his
+## model is missing they are code-built figures with posed arms and legs.
 
 enum Where { ON_DECK, GOING_UP, ON_YARD, COMING_DOWN }
 
@@ -40,6 +44,12 @@ func _ready() -> void:
 			figure.neck_color = Color(0.20, 0.25, 0.40)
 			figure.wears_hat = false
 			figure.wears_cap = n != 1
+			# The modelled seaman where he is there to use: he has a recorded
+			# ladder climb. The colours above are for when he is not.
+			figure.model_path = Models.SEAMAN
+			var washes: Array[Color] = [
+				Color(0.95, 0.9, 0.82), Color(0.84, 0.9, 0.96), Color(0.92, 0.84, 0.8)]
+			figure.model_tint = washes[n]
 			figure.long_coat = false
 			figure.position = deck_spot
 			figure.idle_facing = -side * PI * 0.5   # looking outboard
