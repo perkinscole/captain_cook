@@ -219,12 +219,12 @@ func _build_decks() -> void:
 	# The main deck has a hatch cut in it for the ladder to the lower deck.
 	var hatch_port := ShipLayout.COMPANION_X - ShipLayout.COMPANION_HALF_WIDTH
 	var hatch_starboard := ShipLayout.COMPANION_X + ShipLayout.COMPANION_HALF_WIDTH
-	var foot_z := ShipLayout.COMPANION_FOOT_Z
-	var head_z := ShipLayout.COMPANION_HEAD_Z
-	_deck(ShipLayout.BOW_Z + 0.6, foot_z, ShipLayout.WAIST_Y)
-	_deck(foot_z, head_z, ShipLayout.WAIST_Y, -99.0, hatch_port)
-	_deck(foot_z, head_z, ShipLayout.WAIST_Y, hatch_starboard, 99.0)
-	_deck(head_z, ShipLayout.STERN_Z, ShipLayout.WAIST_Y)
+	var hatch_fore := minf(ShipLayout.COMPANION_FOOT_Z, ShipLayout.COMPANION_HEAD_Z)
+	var hatch_aft := maxf(ShipLayout.COMPANION_FOOT_Z, ShipLayout.COMPANION_HEAD_Z)
+	_deck(ShipLayout.BOW_Z + 0.6, hatch_fore, ShipLayout.WAIST_Y)
+	_deck(hatch_fore, hatch_aft, ShipLayout.WAIST_Y, -99.0, hatch_port)
+	_deck(hatch_fore, hatch_aft, ShipLayout.WAIST_Y, hatch_starboard, 99.0)
+	_deck(hatch_aft, ShipLayout.STERN_Z, ShipLayout.WAIST_Y)
 	_deck(ShipLayout.BOW_Z + 0.6, ShipLayout.FORECASTLE_BREAK_Z, ShipLayout.FORECASTLE_Y)
 	_deck(ShipLayout.QUARTERDECK_BREAK_Z, ShipLayout.STERN_Z, ShipLayout.QUARTERDECK_Y)
 	_deck(ShipLayout.LOWER_FORE_Z - 0.6, ShipLayout.LOWER_AFT_Z + 0.3, ShipLayout.LOWER_Y,
@@ -503,11 +503,13 @@ func _build_lower_deck() -> void:
 	var half := ShipLayout.COMPANION_HALF_WIDTH
 	_ladder(cx, ShipLayout.COMPANION_FOOT_Z, ShipLayout.COMPANION_HEAD_Z, y, roof)
 	var mid_z := (ShipLayout.COMPANION_FOOT_Z + ShipLayout.COMPANION_HEAD_Z) * 0.5
-	var run := ShipLayout.COMPANION_HEAD_Z - ShipLayout.COMPANION_FOOT_Z
+	var run := absf(ShipLayout.COMPANION_HEAD_Z - ShipLayout.COMPANION_FOOT_Z)
+	var deep_end := signf(ShipLayout.COMPANION_FOOT_Z - ShipLayout.COMPANION_HEAD_Z)
+	# Closed on three sides; open at the head of the ladder, where you step on.
 	for side: float in [-1.0, 1.0]:
 		_box(self, Vector3(0.1, 0.3, run), Vector3(cx + side * (half + 0.05), roof + 0.15, mid_z), _wood)
 	_box(self, Vector3(half * 2.0 + 0.2, 0.3, 0.1),
-			Vector3(cx, roof + 0.15, ShipLayout.COMPANION_FOOT_Z - 0.05), _wood)
+			Vector3(cx, roof + 0.15, ShipLayout.COMPANION_FOOT_Z + deep_end * 0.05), _wood)
 
 	# Bulkheads at each end, and beams overhead.
 	var aft_z := ShipLayout.LOWER_AFT_Z + 0.25

@@ -27,15 +27,16 @@ const BULWARK := 1.05              ## height of the rail above the deck
 const LOWER_Y := 1.1               ## the lower deck
 const LOWER_FORE_Z := -11.0        ## how far forward and aft the lower deck runs
 const LOWER_AFT_Z := 3.6
-## The hatch and ladder down to the lower deck: off to port, head aft.
-const COMPANION_X := -1.3
-const COMPANION_HALF_WIDTH := 0.45
-const COMPANION_FOOT_Z := 1.5
-const COMPANION_HEAD_Z := 3.5
+## The hatch and ladder down to the lower deck: to port of the mainmast.
+## You walk aft onto its head from the open waist, and go down facing aft.
+const COMPANION_X := -1.7
+const COMPANION_HALF_WIDTH := 0.55
+const COMPANION_HEAD_Z := -0.6
+const COMPANION_FOOT_Z := 1.6
 ## Where the sick lie in their hammocks on the lower deck (x, z).
 const HAMMOCKS: Array[Vector2] = [
 	Vector2(-2.4, -9.8), Vector2(-2.4, -7.9), Vector2(2.4, -7.6),
-	Vector2(2.4, 0.4), Vector2(-2.4, 0.4),
+	Vector2(2.4, 0.4), Vector2(2.4, 2.4),
 ]
 const GALLEY := Vector3(0.6, LOWER_Y, -8.2)   ## where the cook stands at his stove
 
@@ -44,12 +45,12 @@ const QUARTERDECK_LADDER_X := 2.6
 const QUARTERDECK_LADDER_FOOT_Z := 1.8
 const FORECASTLE_LADDER_X := 2.4
 const FORECASTLE_LADDER_FOOT_Z := -6.3
-const LADDER_HALF_WIDTH := 0.5
+const LADDER_HALF_WIDTH := 0.6
 const DOOR_HALF_WIDTH := 0.55      ## the great cabin door, in the quarterdeck bulkhead
 const DOOR_HEIGHT := 1.9
 
 const BODY_RADIUS := 0.3
-const STEP := 0.4                  ## the biggest step a person can take up or down
+const STEP := 0.5                  ## the biggest step a person can take up or down
 
 ## Things you cannot walk through: x, z, radius, and the deck they stand on.
 const OBSTACLES: Array[Vector4] = [
@@ -80,7 +81,7 @@ const OBSTACLES: Array[Vector4] = [
 	Vector4(-2.4, -7.9, 0.55, LOWER_Y),
 	Vector4(2.4, -7.6, 0.55, LOWER_Y),
 	Vector4(2.4, 0.4, 0.55, LOWER_Y),
-	Vector4(-2.4, 0.4, 0.55, LOWER_Y),
+	Vector4(2.4, 2.4, 0.55, LOWER_Y),
 ]
 
 
@@ -118,7 +119,8 @@ static func is_below(feet: Vector3) -> bool:
 ## Is (x, z) over the open hatch that leads below?
 static func is_over_companion(x: float, z: float) -> bool:
 	return absf(x - COMPANION_X) < COMPANION_HALF_WIDTH \
-			and z >= COMPANION_FOOT_Z and z <= COMPANION_HEAD_Z
+			and z >= minf(COMPANION_FOOT_Z, COMPANION_HEAD_Z) \
+			and z <= maxf(COMPANION_FOOT_Z, COMPANION_HEAD_Z)
 
 
 ## The height of the floor a person at height `y` could stand on at (x, z),

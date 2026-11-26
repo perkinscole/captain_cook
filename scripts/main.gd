@@ -200,7 +200,7 @@ func _ready() -> void:
 	crew.set_process(false)
 	_place_hand("helm", Vector3(0.0, QD_Y, 13.6), 0.0)
 	_place_hand("lead", Vector3(3.3, DECK_Y, -0.3), -PI * 0.5)
-	_place_hand("sails", Vector3(-1.7, DECK_Y, -2.0), PI)
+	_place_hand("sails", Vector3(1.7, DECK_Y, -2.0), PI)
 	_place_hand("cook", ShipLayout.GALLEY, PI)
 	_place_hand("lookout", Vector3(0.0, DECK_Y + 30.0 * ShipVisual.TOP_AT + 0.08, 0.85), 0.0)
 

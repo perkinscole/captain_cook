@@ -124,8 +124,8 @@ first prototype also tried holding the wheel directly; giving orders was chosen.
   wheel turns under the helmsman's hands, the lead swings from the chains, spray
   comes over the bow when she drives into a sea, rain falls in a squall, and
   people on deck glance about them.
-- **Below decks.** A hatch in the waist, to port by the quarterdeck ladder,
-  leads down to the lantern-lit lower deck: mess tables and sea chests, the
+- **Below decks.** A hatch in the waist, just to port of the mainmast,
+  leads down (walk aft onto the head of its ladder) to the lantern-lit lower deck: mess tables and sea chests, the
   galley stove with the cook at it, casks, and hammocks. A hand who falls sick
   is laid in a hammock there until he is well.
 - **Sound.** Sea, wind, creaking timbers, the ship's bell, the splash of the

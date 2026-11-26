@@ -29,7 +29,8 @@ func _ready() -> void:
 		for n in 3:
 			var side := -1.0 if n == 0 else 1.0
 			var out: float = [-2.6, 2.6, 1.0][n] * ShipVisual.MAST_HEIGHT[mast] / 30.0
-			var z := ShipVisual.MAST_Z[mast] + 1.6 + 0.7 * n
+			# They wait just forward of their mast, clear of the ladders.
+			var z := ShipVisual.MAST_Z[mast] - 1.0 - 0.6 * n
 			var deck_spot := Vector3(side * (ShipLayout.half_breadth(z) - 0.75),
 					ShipLayout.deck_top(z), z)
 			var figure := Figure.new()
