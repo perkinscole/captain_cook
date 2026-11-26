@@ -1,7 +1,8 @@
 class_name ShipVisual
 extends Node3D
 ## Placeholder ship made of boxes and cylinders. Child of a Ship.
-## Shows the sail setting and braces the yards to the wind.
+## Shows how much canvas is set, braces the yards to the wind, and shivers
+## the sails when she is too close to it.
 
 const MAST_Z: Array[float] = [-9.0, 0.0, 8.0]        # fore, main, mizzen
 const MAST_HEIGHT: Array[float] = [26.0, 30.0, 22.0]
@@ -9,9 +10,13 @@ const MAST_HEIGHT: Array[float] = [26.0, 30.0, 22.0]
 const TIER_HEIGHT: Array[float] = [0.55, 0.28, 0.80]  # fraction of mast height
 const TIER_WIDTH: Array[float] = [11.0, 13.0, 8.0]
 
+# Canvas (0..1) above which each tier is set. Topsails are reefed below 0.5.
+const TIER_SET_ABOVE: Array[float] = [0.04, 0.6, 0.88]
+
 var ship: Ship
 
 var _yards: Array[Node3D] = []
+var _time: float = 0.0
 var _tiers: Array[Array] = [[], [], []]
 
 
@@ -53,12 +58,19 @@ func _ready() -> void:
 			_tiers[t].append(sail_mesh)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if ship == null:
 		return
+	_time += delta
+	var shiver := 0.0
+	if ship.trim() == Ship.Trim.SHIVERING or ship.trim() == Ship.Trim.ABACK:
+		shiver = 0.07
 	for t in _tiers.size():
 		for sail_mesh: MeshInstance3D in _tiers[t]:
-			sail_mesh.visible = ship.sail > t
+			sail_mesh.visible = ship.canvas > TIER_SET_ABOVE[t]
+			sail_mesh.rotation.y = shiver * sin(_time * 17.0 + sail_mesh.position.y)
+			if t == 0:
+				sail_mesh.scale.y = clampf(ship.canvas / 0.5, 0.2, 1.0)
 
 	# Square before the wind, braced up sharp when close-hauled.
 	var rel := ship.relative_wind_deg()

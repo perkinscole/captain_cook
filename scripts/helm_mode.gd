@@ -12,10 +12,13 @@ func help() -> String:
 
 
 func status(ship: Ship) -> String:
-	if absf(ship.rudder) < 0.05:
-		return "Wheel amidships"
-	var side := "starboard" if ship.rudder > 0.0 else "port"
-	return "Wheel %d%% to %s" % [roundi(absf(ship.rudder) * 100.0), side]
+	var text := "Wheel amidships"
+	if absf(ship.rudder) >= 0.05:
+		var side := "starboard" if ship.rudder > 0.0 else "port"
+		text = "Wheel %d%% to %s" % [roundi(absf(ship.rudder) * 100.0), side]
+	if ship.has_sternway():
+		text += "   (going astern: the wheel works backwards)"
+	return text
 
 
 func steer(ship: Ship, delta: float) -> void:

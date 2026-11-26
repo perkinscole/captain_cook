@@ -5,7 +5,7 @@ extends Node
 
 signal completed
 
-const SIGHT_RANGE := 450.0     ## metres at which a coast can be fixed
+const CLEAR_SIGHT_RANGE := 450.0  ## metres at which a coast can be fixed on a clear day
 const DONE_FRACTION := 0.98
 const CHECK_INTERVAL := 0.25
 
@@ -16,6 +16,7 @@ var seen := PackedByteArray()        ## one flag per island.coast point
 var seen_count: int = 0
 var track := PackedVector2Array()    ## ship's path as world (x, z)
 var complete: bool = false
+var sight_range: float = CLEAR_SIGHT_RANGE  ## shorter in thick weather
 
 var _timer: float = 0.0
 
@@ -53,7 +54,7 @@ func _physics_process(delta: float) -> void:
 		var p := island.coast[i]
 		var to_ship := here - p
 		# In range, and on the side of the island that faces the ship.
-		if to_ship.length() <= SIGHT_RANGE and to_ship.dot(p - centre) > 0.0:
+		if to_ship.length() <= sight_range and to_ship.dot(p - centre) > 0.0:
 			seen[i] = 1
 			seen_count += 1
 

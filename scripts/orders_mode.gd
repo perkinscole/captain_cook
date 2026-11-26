@@ -36,4 +36,6 @@ func handle_key(_ship: Ship, keycode: Key) -> bool:
 func steer(ship: Ship, delta: float) -> void:
 	var error := wrapf(ordered_deg - ship.heading_deg, -180.0, 180.0)
 	var wanted := clampf(error / 12.0, -1.0, 1.0)
+	if ship.has_sternway():
+		wanted = -wanted  # the helmsman knows to reverse the wheel going astern
 	ship.rudder = move_toward(ship.rudder, wanted, 2.0 * delta)

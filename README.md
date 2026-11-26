@@ -3,13 +3,29 @@
 A first-person game about Captain James Cook's voyages, seen by a young officer
 who serves under him. The full brief is in [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md).
 
-## Current state: prototype 1, "chart one island"
+## Current state: chart one island, plus milestone 1 "sailing feel"
 
-One ship, one patch of ocean, one island, a wind that wanders, and a chart that
-starts blank and fills in as you sail within sight of the coast. It is done
-when you have sailed round the island and the chart is complete.
+One ship, one patch of ocean, one island, and a chart that starts blank and
+fills in as you sail within sight of the coast. It is done when you have sailed
+round the island and the chart is complete.
 
-Everything is placeholder shapes. There is no crew, story, weather or scoring yet.
+On top of that, the sailing now has some depth:
+
+- **Sail states.** Five orders from bare poles to all sail, with reefed
+  topsails for heavy weather. The hands take a few seconds to make or shorten sail.
+- **Points of sail.** She is fastest with the wind on the quarter and cannot
+  sail closer than about 50 degrees to it. Closer than that the sails shiver,
+  and head to wind they are taken aback and she goes slowly astern, with the
+  wheel working backwards. She also makes leeway (slides downwind) when close-hauled.
+- **Tacking.** With good speed she will carry her way through the wind onto the
+  other tack. Too slow and she misses stays; turn the other way round instead.
+- **Weather.** Fair spells are broken by squalls (a warning, then hard gusts, a
+  wind shift, a steep sea and poor visibility) and by banks of mist. Carry too
+  much sail in a squall and one blows out. In thick weather you must stand
+  closer inshore to chart the coast.
+
+Everything is placeholder shapes. There is no crew, story or scoring yet.
+Both control modes are still in, so they can be compared before one is picked.
 
 ## Running it
 
@@ -38,6 +54,7 @@ Systems are kept separate so each can be swapped:
 | File | What it owns |
 | --- | --- |
 | `scripts/wind.gd` | Wind direction and strength over time |
+| `scripts/weather.gd` | Fair weather, squalls and mist; drives the wind and visibility |
 | `scripts/ship.gd` | Ship movement from wind, sail and rudder |
 | `scripts/control_mode.gd`, `orders_mode.gd`, `helm_mode.gd` | The two input modes being compared |
 | `scripts/island.gd` | Procedural island and its coastline |
