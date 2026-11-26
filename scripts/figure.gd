@@ -62,10 +62,15 @@ const POSES := {
 }
 const EYE_HEIGHT := 1.62
 const HIP_HEIGHT := 0.92
-## For a modelled body: the moment in its walk clip where it stands most
-## upright, and the pace the clip was made to walk at.
-const MODEL_STAND_AT := 0.5
-const MODEL_CLIP_PACE := 1.3
+## For a modelled body: the pace its walking clip was made to walk at, and
+## which of its recorded clips each named pose calls for. A clip a body does
+## not have falls back to its idle.
+const MODEL_WALK_PACE := 1.0
+const MODEL_BLEND := 0.35   ## seconds to ease from one clip into the next
+const POSE_CLIPS := {
+	"regard": "talk", "reading": "talk", "pointing": "talk", "offer": "talk",
+	"climb": "climb", "haul": "look", "lean": "look",
+}
 
 ## Set these before adding the figure to the scene.
 var coat_color := Color(0.09, 0.12, 0.25)
@@ -84,8 +89,12 @@ var lying: bool = false       ## laid in a hammock
 
 ## A modelled, rigged body to use instead of the one built here (a path from
 ## Models). If the file is missing, the code-built body is used. A modelled
-## body has a recorded walk but no named poses: asked for a pose, it stands.
+## body moves by recorded clips (idle, walk, talk and so on), not by the
+## named poses: each pose is mapped to the nearest clip it has.
 var model_path: String = ""
+## What a modelled body does when left alone: "idle", or "look" to have it
+## keep looking about, as a lookout does.
+var idle_clip: String = "idle"
 var model_tint := Color(1.0, 1.0, 1.0)   ## a wash of colour over a modelled body
 var walk_pace: float = 1.05              ## how fast it is moved when walking, m/s
 var eye_height: float = EYE_HEIGHT
@@ -104,8 +113,9 @@ var _glance: float = 0.0      # where the head is idly turned
 var _glance_wait: float = 2.0
 var _quirk: float = 0.0       # so that no two people breathe in step
 var _player: AnimationPlayer  # only for a modelled body
-var _clip: StringName = &""
-var _clip_walking: bool = false
+var _clips: Dictionary = {}   # what a clip is for ("idle", "walk", ...) -> its name
+var _standing: String = "idle"  # what the body does when it is not walking
+var _playing: String = ""
 
 
 func _ready() -> void:
@@ -230,18 +240,52 @@ func _build_from_model() -> bool:
 	_chart.rotation.x = -0.5
 	_chart.visible = false
 
+	# Sort the recorded clips by what they are for, and make them all repeat.
 	for found in body.find_children("*", "AnimationPlayer", true, false):
 		_player = found as AnimationPlayer
 	if _player != null:
 		for clip in _player.get_animation_list():
-			if clip != &"RESET":
-				_clip = clip
-	if _player != null and _clip != &"":
-		_player.get_animation(_clip).loop_mode = Animation.LOOP_LINEAR
-		_player.play(_clip)
-		_player.speed_scale = 0.0
-		_player.seek(MODEL_STAND_AT, true)
+			var key := String(clip).to_lower()
+			if key == "reset":
+				continue
+			_player.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
+			if key.contains("walk"):
+				_clips["walk"] = clip
+			elif key.contains("talk") or key.contains("chat"):
+				_clips["talk"] = clip
+			elif key.contains("climb"):
+				_clips["climb"] = clip
+			elif key.contains("look"):
+				_clips["look"] = clip
+			elif key.contains("idle"):
+				_clips["idle"] = clip
+	_standing = idle_clip
+	_play_clip(_standing)
 	return true
+
+
+## Starts the recorded clip for a purpose ("idle", "walk", "talk", ...),
+## easing into it from whatever was playing.
+func _play_clip(purpose: String) -> void:
+	if _player == null:
+		return
+	var clip: String = _clips.get(purpose, _clips.get("idle", _clips.get("walk", "")))
+	if clip == "":
+		return
+	_player.speed_scale = walk_pace / MODEL_WALK_PACE if purpose == "walk" else 1.0
+	if clip != _playing:
+		_playing = clip
+		_player.play(clip, MODEL_BLEND)
+	# A body with no idle clip can only stand by holding still.
+	if purpose != "walk" and not _clips.has(purpose) and not _clips.has("idle"):
+		_player.speed_scale = 0.0
+
+
+## Has the figure gesture as people do when speaking. Only a modelled body
+## with a talking clip shows it; rest() ends it.
+func talk() -> void:
+	if _parts.is_empty():
+		_standing = "talk"
 
 
 ## Eases into a named pose. Unknown names are ignored.
@@ -251,7 +295,9 @@ func set_pose(pose: String, seconds: float = 0.9) -> void:
 	var target: Dictionary = POSES[pose]
 	_chart.visible = target.get("chart", false)
 	if _parts.is_empty():
-		return   # a modelled body has no joints to pose
+		# A modelled body has no joints to pose: use the nearest recorded clip.
+		_standing = POSE_CLIPS.get(pose, idle_clip)
+		return
 	if _tween != null:
 		_tween.kill()
 		_tween = null
@@ -288,15 +334,9 @@ func _process(delta: float) -> void:
 	_time += delta
 	rotation.y = lerp_angle(rotation.y, facing, 1.0 - exp(-3.5 * delta))
 	if _parts.is_empty():
-		# A modelled body: play its recorded walk while it is moved, and hold
-		# the upright moment of that walk while it stands.
-		if _player != null and _clip != &"" and walking != _clip_walking:
-			_clip_walking = walking
-			if walking:
-				_player.speed_scale = walk_pace / MODEL_CLIP_PACE
-			else:
-				_player.speed_scale = 0.0
-				_player.seek(MODEL_STAND_AT, true)
+		# A modelled body: its recorded walk while it is moved, and otherwise
+		# whatever it is standing and doing.
+		_play_clip("walk" if walking else _standing)
 		return
 
 	# Walking: the legs swing from the hip and bend at the knee, and the

@@ -4,13 +4,13 @@ extends RefCounted
 ## Everything that uses one of these falls back to its code-built version if
 ## the file is not there.
 
-const SEAMAN := "res://models/seaman/seaman_walking.glb"
-const OLD_SEAMAN := "res://models/characters/old_seaman/old_seaman_walking.glb"
-const SHIPS_BOY := "res://models/characters/ships_boy/ships_boy_walking.glb"
-const COOK := "res://models/characters/cook/cook_walking.glb"
-const OFFICER := "res://models/characters/officer/officer_walking.glb"
-const MARINE := "res://models/characters/marine/marine_walking.glb"
-const BANKS := "res://models/characters/banks/banks_walking.glb"
+const SEAMAN := "res://models/seaman/seaman_actions.glb"
+const OLD_SEAMAN := "res://models/characters/old_seaman/old_seaman_actions.glb"
+const SHIPS_BOY := "res://models/characters/ships_boy/ships_boy_actions.glb"
+const COOK := "res://models/characters/cook/cook_actions.glb"
+const OFFICER := "res://models/characters/officer/officer_actions.glb"
+const MARINE := "res://models/characters/marine/marine_actions.glb"
+const BANKS := "res://models/characters/banks/banks_actions.glb"
 
 const HULL := "res://models/ship/hull.glb"
 const WHEEL := "res://models/ship/wheel.glb"

@@ -8,7 +8,7 @@ missing (see `scripts/models.gd`).
 
 | File | Used for |
 | --- | --- |
-| `seaman/seaman_walking.glb` | The leadsman, boatswain's mate and cook, and the hands who walk the deck |
+| `seaman/seaman_actions.glb` | The leadsman, boatswain's mate and cook, and the hands who walk the deck |
 | `characters/old_seaman/` | Trull, the quartermaster at the wheel |
 | `characters/ships_boy/` | Nicholas Young at the masthead |
 | `characters/cook/` | Captain Cook |
@@ -20,8 +20,20 @@ missing (see `scripts/models.gd`).
 | `ship/boat_light.glb` | The longboat and the pinnace, stowed over the waist. About 28,000 triangles. |
 | `ship/gun_light.glb` | The four 4-pounder guns in the waist. About 14,000 triangles. |
 
-Each character folder has the rigged body (`*_rigged.glb`) and the same body
-with a walking clip (`*_walking.glb`), which is the one the game loads.
+Each character has one file, `*_actions.glb`, holding the body, its skeleton
+and its recorded clips:
+
+| Character | Clips |
+| --- | --- |
+| Seaman | Idle, Casual Walk, Stand and Chat, Short Breathe and Look Around, Ladder Climb Loop |
+| Cook, Banks | Idle, Casual Walk, Talk with Hands Open |
+| Officer, old seaman | Idle, Casual Walk, Stand and Chat |
+| Ship's boy | Idle, Casual Walk, Short Breathe and Look Around |
+| Marine | Idle, Casual Walk |
+
+`scripts/figure.gd` sorts the clips by name into idle, walk, talk, look and
+climb, and plays the nearest one for whatever the figure is doing. The Meshy
+tasks behind every file are listed in `meshy_output/*.tsv`.
 
 The boat and the gun first came back far too detailed to use (1.3 million and
 400,000 triangles). Those originals are not kept here; the slimmed versions

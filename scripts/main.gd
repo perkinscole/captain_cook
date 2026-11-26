@@ -729,6 +729,7 @@ func _on_dialogue_line() -> void:
 			_speaker = next_speaker
 			_speaker.facing = landfall.active_camera().yaw_to_face_me(_speaker.position)
 	if _speaker != null and dialogue.who != "":
+		_speaker.talk()
 		_speaker.set_pose(dialogue.pose)
 
 
@@ -914,6 +915,7 @@ func _place_hand(role: String, at: Vector3, facing: float) -> void:
 			figure.model_path = Models.OLD_SEAMAN
 		"lookout":
 			figure.model_path = Models.SHIPS_BOY
+			figure.idle_clip = "look"   # he never stops scanning the sea
 		_:
 			figure.model_path = Models.SEAMAN
 			figure.model_tint = Color(1.0, 1.0, 1.0).lerp(h.jacket.lightened(0.4), 0.35)
