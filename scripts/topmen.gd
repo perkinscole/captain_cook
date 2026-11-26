@@ -39,6 +39,7 @@ func _ready() -> void:
 			figure.hair_color = Color(0.25, 0.18, 0.12)
 			figure.neck_color = Color(0.20, 0.25, 0.40)
 			figure.wears_hat = false
+			figure.wears_cap = n != 1
 			figure.long_coat = false
 			figure.position = deck_spot
 			figure.idle_facing = -side * PI * 0.5   # looking outboard

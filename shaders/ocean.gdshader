@@ -23,10 +23,12 @@ uniform float map_size = 1800.0;
 // drawn inside her hull, or it would wash across the lower deck.
 uniform vec4 hull = vec4(0.0, 0.0, 0.0, 1.0);
 uniform bool has_hull = false;
+uniform float hull_speed = 0.0;   // metres a second through the water
 
 varying vec3 world_pos;
 varying float crest;
 varying float fold;
+varying float trail;
 
 #include "res://shaders/paint.gdshaderinc"
 
@@ -71,6 +73,7 @@ void vertex() {
 	vec3 offset = vec3(0.0);
 	vec3 n = vec3(0.0, 1.0, 0.0);
 	float folded = 0.0;
+	float lagging = 0.0;
 	float total = 0.001;
 	for (int i = 0; i < 8; i++) {
 		float k = max(wave_a[i].z, 0.0001);
@@ -85,28 +88,50 @@ void vertex() {
 		n.xz -= d * (k * amp * c);
 		n.y -= chop * k * amp * s;
 		folded += chop * k * amp * s;
+		lagging += chop * k * amp * sin(theta + 0.9);   // how steep it was a moment ago
 		total += wave_a[i].w;
 	}
 	VERTEX += offset;
 	NORMAL = normalize(n);
 	crest = offset.y / total;
 	fold = folded;
+	trail = lagging;
 	world_pos = wp + offset;
 }
 
 void fragment() {
 	vec2 p = world_pos.xz;
+	float ship_foam = 0.0;
+	float ship_ripple = 0.0;
 	if (has_hull) {
 		vec2 d = p - hull.xy;
 		float aft = -(d.x * hull.z - d.y * hull.w);
 		float across = d.x * hull.w + d.y * hull.z;
 		float u = (aft + 16.0) / 31.0;
+		float half_width = 0.0;
 		if (u > 0.01 && u < 0.995) {
 			float bow = pow(clamp(u / 0.12, 0.0, 1.0), 0.4);
 			float stern = 1.0 - 0.22 * pow(clamp((u - 0.78) / 0.22, 0.0, 1.0), 2.0);
-			if (abs(across) < 4.0 * bow * stern * 0.84) {
+			half_width = 4.0 * bow * stern * 0.84;
+			if (abs(across) < half_width) {
 				discard;
 			}
+		}
+		float way = clamp(hull_speed / 5.0, 0.0, 1.0);
+		// White water washing along her sides.
+		if (u > -0.02 && u < 1.04) {
+			ship_foam += (1.0 - smoothstep(0.0, 1.7, abs(across) - half_width)) * (0.3 + 0.6 * way);
+		}
+		// The bow wave: two arms spreading aft from the stem like a V, and
+		// lesser waves following inside them, like the ribs of a feather.
+		float behind = aft + 16.0;
+		if (behind > 0.0) {
+			float arm = 0.6 + behind * 0.36;
+			float fade = exp(-behind / 75.0) * way;
+			float off_arm = (abs(across) - arm) / (1.0 + behind * 0.035);
+			ship_foam += exp(-off_arm * off_arm) * fade * 0.9;
+			float ribs = sin((abs(across) - arm) * 1.1 + behind * 0.25 - sea_time * 2.2);
+			ship_ripple = ribs * fade * step(abs(across), arm + 2.0);
 		}
 	}
 	float t = sea_time;
@@ -149,11 +174,16 @@ void fragment() {
 
 	// White water: on crests that are folding over, and along the shore.
 	float lace = 0.6 * vnoise(p * 0.9 + vec2(t * 0.2, 0.0)) + 0.4 * vnoise(p * 3.1 - vec2(0.0, t * 0.4));
-	float cap = smoothstep(0.06, 0.15, fold) * smoothstep(0.3, 0.7, lace + 0.3 * crest);
+	// A crest that is folding over breaks; the foam it leaves trails behind it.
+	float breaking = smoothstep(0.06, 0.15, fold);
+	float left_behind = 0.6 * smoothstep(0.05, 0.14, trail) * (1.0 - breaking);
+	float cap = max(breaking, left_behind) * smoothstep(0.3, 0.7, lace + 0.3 * crest);
 	float wash = 1.0 - smoothstep(0.3, 3.2, depth);
 	float shore = wash * smoothstep(0.35, 0.65, lace + 0.25 * sin(t * 0.9 + depth * 2.0));
 	// Foam is laid on in dabs too: whole strokes of white, not a smooth haze.
-	float foam = smoothstep(0.22, 0.5, clamp(cap + shore, 0.0, 1.0) * (0.55 + 0.9 * paint.x));
+	float white = clamp(cap + shore + ship_foam + 0.25 * max(ship_ripple, 0.0), 0.0, 1.0);
+	float foam = smoothstep(0.22, 0.5, white * (0.55 + 0.9 * paint.x));
+	sea *= 1.0 + 0.18 * ship_ripple;   // light and shade on the ripples she makes
 
 	sea = mix(sea, sea * 0.5 + vec3(0.03, 0.04, 0.045), storm * 0.8);
 	ALBEDO = mix(sea, vec3(0.93, 0.95, 0.93), foam);

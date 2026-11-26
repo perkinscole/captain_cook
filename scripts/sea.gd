@@ -12,7 +12,6 @@ const SHADER := preload("res://shaders/ocean.gdshader")
 const REACH := 7000.0        ## how far the mesh runs from the ship, in metres
 const GRID := 300            ## squares along each side of the mesh
 const FINE := 0.0214         ## sets how close together the points are near the ship
-const CHOP := 0.8            ## how sharp the crests are (0 = smooth, 1 = sharpest)
 const WAVE_COUNT := 8
 const GRAVITY := 9.81
 # Swells: direction they travel (x, z), wavelength, height.
@@ -38,6 +37,7 @@ var _anchor := Vector2.ZERO
 var _next_anchor := Vector2.ZERO
 var _wind_angle: float = 0.0     # smoothed direction the wind blows toward
 var _wind_speed: float = 8.0     # smoothed
+var _chop: float = 0.8           # how sharp the crests are: sharper as it blows up
 var _dir: Array[Vector2] = []
 var _k: Array[float] = []
 var _amp: Array[float] = []
@@ -52,7 +52,6 @@ func _ready() -> void:
 		_phase.append(i * 1.7)
 	_mat = ShaderMaterial.new()
 	_mat.shader = SHADER
-	_mat.set_shader_parameter("chop", CHOP)
 	_mesh = MeshInstance3D.new()
 	_mesh.mesh = _build_mesh()
 	_mesh.material_override = _mat
@@ -78,9 +77,10 @@ func follow(centre: Vector3) -> void:
 
 
 ## Tells the sea where the ship is, so that it is not drawn inside her.
-func set_hull(at: Vector3, heading_deg: float) -> void:
+func set_hull(at: Vector3, heading_deg: float, speed: float) -> void:
 	var h := deg_to_rad(heading_deg)
 	_mat.set_shader_parameter("hull", Vector4(at.x, at.z, sin(h), cos(h)))
+	_mat.set_shader_parameter("hull_speed", absf(speed))
 	_mat.set_shader_parameter("has_hull", true)
 
 
@@ -116,7 +116,7 @@ func set_depth_map(seabed: Seabed, centre: Vector2, size: float = 1800.0) -> voi
 func _sideways(q: Vector2) -> Vector2:
 	var push := Vector2.ZERO
 	for i in WAVE_COUNT:
-		push += _dir[i] * (CHOP * _amp[i] * cos(_k[i] * _dir[i].dot(q - _anchor) + _phase[i]))
+		push += _dir[i] * (_chop * _amp[i] * cos(_k[i] * _dir[i].dot(q - _anchor) + _phase[i]))
 	return push
 
 
@@ -133,6 +133,9 @@ func _update_waves(delta: float) -> void:
 	var force := _wind_speed / 8.0
 	var wind_sea := clampf(force * force * 0.55, 0.12, 2.4) + 0.4 * sea_state
 	var stretch := clampf(force, 0.7, 1.6)
+	# In a fresh wind the crests sharpen until they topple and break.
+	_chop = clampf(0.72 + 0.22 * (force - 0.8), 0.7, 0.98)
+	_mat.set_shader_parameter("chop", _chop)
 
 	var packed_a := PackedFloat32Array()
 	var packed_b := PackedFloat32Array()

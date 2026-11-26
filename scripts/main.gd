@@ -157,6 +157,21 @@ func _ready() -> void:
 	followers.heights = Vector2(22.0, 40.0)
 	followers.follow = ship
 	add_child(followers)
+	# Frigatebirds: big, black, and very high, hanging over the ship.
+	var frigates := Birds.new()
+	frigates.count = 3
+	frigates.tint = Color(0.08, 0.08, 0.10)
+	frigates.size = 2.0
+	frigates.pace = 0.5
+	frigates.spread = Vector2(60.0, 200.0)
+	frigates.heights = Vector2(80.0, 130.0)
+	frigates.follow = ship
+	add_child(frigates)
+	var sea_life := SeaLife.new()
+	sea_life.ship = ship
+	sea_life.sea = sea
+	add_child(sea_life)
+	ship.add_child(Deckhands.new())
 
 	lead = LeadLine.new()
 	lead.ship = ship
@@ -267,7 +282,7 @@ func _physics_process(delta: float) -> void:
 func _process(delta: float) -> void:
 	sea.sea_state = weather.sea_state
 	sea.follow(ship.position)
-	sea.set_hull(ship.position, ship.heading_deg)
+	sea.set_hull(ship.position, ship.heading_deg, ship.speed)
 	_tend_the_sick()
 	atmosphere.apply(weather.gloom, weather.visibility, wind.from_deg,
 			fposmod(supplies.days * 0.5, 1.0), delta)
@@ -765,6 +780,8 @@ func _place_hand(role: String, at: Vector3, facing: float) -> void:
 	if h.boy:
 		figure.scale = Vector3(0.8, 0.8, 0.8)
 	figure.wears_hat = false
+	figure.wears_cap = role == "lead" or role == "sails" or role == "lookout"
+	figure.cap_color = h.kerchief
 	figure.long_coat = false
 	ship.add_child(figure)
 	_hand_figures[h] = figure

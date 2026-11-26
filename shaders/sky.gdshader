@@ -53,7 +53,7 @@ void sky() {
 		toward_sun = max(dot(dir, LIGHT0_DIRECTION), 0.0);
 		sun_col = LIGHT0_COLOR * min(LIGHT0_ENERGY, 1.5);
 	}
-	col += sun_col * (pow(toward_sun, 8.0) * 0.22 + pow(toward_sun, 120.0) * 0.5);
+	col += sun_col * (pow(toward_sun, 24.0) * 0.10 + pow(toward_sun, 300.0) * 0.4);
 	float disk = smoothstep(0.9993, 0.9997, toward_sun);
 
 	if (dir.y > 0.0) {

@@ -152,7 +152,9 @@ func _physics_process(delta: float) -> void:
 
 	_update_strain(delta)
 
-	var heel := signf(rel) * sin(deg_to_rad(a)) * wind.strength * canvas * 0.012
+	# She lists away from the wind: a few degrees in a breeze, a good deal
+	# more when she is pressed.
+	var heel := clampf(signf(rel) * sin(deg_to_rad(a)) * wind.strength * canvas * 0.03, -0.3, 0.3)
 	_roll = lerpf(_roll, heel, 1.0 - exp(-2.0 * delta))
 
 	position = pos

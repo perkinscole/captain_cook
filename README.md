@@ -124,6 +124,14 @@ first prototype also tried holding the wheel directly; giving orders was chosen.
   fill the wrong way when taken aback, a pennant that streams downwind and the
   red ensign at the stern. Proportions are stretched a little so there is room
   to walk. People are built from rounded shapes. All of it is made in code.
+- **A living ship and sea.** She lists away from the wind. People have
+  jointed arms and legs, faces, queues and caps; hands walk their beats about
+  the deck, stopping to lean on the rail or haul on a rope, and a marine
+  sentry paces the quarterdeck. Gulls wheel over the island and follow the
+  ship, frigatebirds hang high above her, dolphins come to leap in the bow
+  wave, and flying fish break from the sea ahead. She pushes a V of bow waves
+  with ripples inside it and white water along her sides, and in a fresh
+  wind the crests sharpen, break, and leave foam behind them.
 - **Things that move.** Order sail and six topmen run to the shrouds, climb
   to the yard and lay out along it; the sail does not move until they are
   there, then it is let fall from the yard or gathered up into a furl. The
@@ -186,6 +194,8 @@ Systems are kept separate so each can be swapped:
 | `scripts/ui/` | Theme, compass, panels, spyglass, crew cards, title and pause pages |
 | `scripts/atmosphere.gd`, `shaders/sky.gdshader` | Sky, sun, clouds and fog |
 | `scripts/birds.gd`, `shaders/surf.gdshader` | Seabirds, and surf on the shore |
+| `scripts/sea_life.gd` | Dolphins and flying fish |
+| `scripts/deckhands.gd` | Hands who walk the deck |
 | `scripts/tutorial.gd` | The lessons |
 | `scripts/weather.gd` | Fair weather, squalls and mist; drives the wind and visibility |
 | `scripts/ship.gd` | Ship movement from wind, sail and rudder |

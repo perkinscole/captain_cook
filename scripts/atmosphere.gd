@@ -40,14 +40,16 @@ func _ready() -> void:
 	_env.tonemap_white = 6.0
 	# Whites that glow: bright things bleed light into what is around them.
 	_env.glow_enabled = true
-	_env.glow_intensity = 0.7
-	_env.glow_bloom = 0.12
+	_env.glow_intensity = 0.45
+	_env.glow_bloom = 0.05
 	_env.glow_hdr_threshold = 0.9
 	# Distance haze, plus fog with real depth that catches the sunlight.
 	_env.fog_enabled = true
-	_env.fog_density = 0.0003
+	_env.fog_density = 0.00012
+	_env.fog_sky_affect = 0.15       # haze on the sea and land, but a clear sky
 	_env.volumetric_fog_enabled = true
-	_env.volumetric_fog_density = 0.0008
+	_env.volumetric_fog_density = 0.0003
+	_env.volumetric_fog_sky_affect = 0.1
 	_env.volumetric_fog_anisotropy = 0.7
 	_env.volumetric_fog_length = 500.0
 	_env.volumetric_fog_ambient_inject = 0.4
@@ -64,7 +66,7 @@ func _ready() -> void:
 	_sun.light_angular_distance = 0.8
 	_sun.shadow_blur = 1.5
 	_sun.rotation_degrees = Vector3(-27.0, -125.0, 0.0)
-	_sun.light_volumetric_fog_energy = 1.6
+	_sun.light_volumetric_fog_energy = 0.7
 	add_child(_sun)
 	apply(0.0, 1.0, 90.0, 0.0, 0.0)
 
@@ -99,7 +101,9 @@ func apply(gloom: float, visibility: float, wind_from: float, day_part: float,
 
 	var thick := clampf(1.0 - visibility, 0.0, 1.0)
 	_env.fog_light_color = horizon
-	_env.fog_density = lerpf(0.0003, 0.005, thick)
+	_env.fog_density = lerpf(0.00012, 0.005, thick)
+	_env.fog_sky_affect = lerpf(0.15, 1.0, thick)
 	_env.volumetric_fog_albedo = horizon.lerp(Color(1.0, 1.0, 1.0), 0.3)
-	_env.volumetric_fog_density = lerpf(0.0008, 0.014, thick) * (1.0 - 0.8 * shelter)
+	_env.volumetric_fog_density = lerpf(0.0003, 0.014, thick) * (1.0 - 0.8 * shelter)
+	_env.volumetric_fog_sky_affect = lerpf(0.1, 1.0, thick)
 	_env.ambient_light_energy = lerpf(0.8, 0.1, shelter)
