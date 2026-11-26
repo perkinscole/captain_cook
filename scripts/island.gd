@@ -1,17 +1,31 @@
 class_name Island
 extends Node3D
-## One procedural island: a wobbly coastline with a hill in the middle.
-## The coastline is kept as a ring of points so the chart can draw it and the
-## ship can run aground on it.
+## The island: a stand-in for Tahiti, built in code.
+##
+## Like Tahiti it is the stump of an old volcano: sharp peaks in the middle,
+## knife-edged ridges with deep valleys between them running down to the
+## sea, waterfalls in the valleys, and a narrow green plain round the shore
+## where the people live among breadfruit and coconut palms. There are
+## villages of thatched houses with canoes drawn up before them, and on the
+## north point the fort the ship's company built for the observatory.
+##
+## The coastline is kept as a ring of points so the chart can draw it and
+## the ship can run aground on it. The shape is invented, not surveyed.
 
 const SAMPLES := 180        ## coastline points, one every 2 degrees
-const RINGS := 18
+const RINGS := 44
+const MESH_SAMPLES := 360   ## the ground is drawn twice as finely as the coast is charted
 const BASE_RADIUS := 300.0
 const RADIUS_SWING := 110.0
-const PEAK_HEIGHT := 150.0
-const PALMS := 70
+const PEAK_HEIGHT := 215.0
+## Where the mountains end and the coastal plain begins, as a share of the
+## way from the middle to the shore.
+const PLAIN_FROM := 0.78
+const PALMS := 340
+const GROVE_TREES := 260
 const LANDMARK_EVERY := 15  ## one landmark every 15 coast points (30 degrees)
-const TREES := 900
+const TREES := 2600
+const WATERFALL_SHADER := preload("res://shaders/waterfall.gdshader")
 const SURF_SHADER := preload("res://shaders/surf.gdshader")
 ## The island is a stand-in for Tahiti: the shape is made up, not the real
 ## coastline. Point Venus is real (the north point, beside Matavai Bay). The
@@ -33,6 +47,10 @@ var landmarks := PackedVector2Array()  ## world-space (x, z) of each landmark
 var keep_clear_angle: float = INF
 
 var _landmark_tops := PackedFloat32Array()
+var _noise: FastNoiseLite
+var _trunk_mesh: CylinderMesh
+var _crown_mesh: ArrayMesh
+var _clouds: Node3D
 var _bark: ShaderMaterial
 var _fronds: ShaderMaterial
 var _radii := PackedFloat32Array()
@@ -40,46 +58,40 @@ var _heights := PackedFloat32Array()  # height of every mesh vertex, ring by rin
 
 
 func build(noise_seed: int) -> void:
-	var noise := FastNoiseLite.new()
-	noise.seed = noise_seed
-	noise.frequency = 0.01
+	_noise = FastNoiseLite.new()
+	_noise.seed = noise_seed
+	_noise.frequency = 0.01
 
 	coast.resize(SAMPLES)
 	_radii.resize(SAMPLES)
-	_heights.resize((RINGS + 1) * SAMPLES)
 	for i in SAMPLES:
 		var a := TAU * i / SAMPLES
-		var r := BASE_RADIUS + RADIUS_SWING * noise.get_noise_2d(cos(a) * 130.0, sin(a) * 130.0)
+		var r := BASE_RADIUS + RADIUS_SWING * _noise.get_noise_2d(cos(a) * 130.0, sin(a) * 130.0)
 		_radii[i] = r
 		coast[i] = Vector2(position.x + cos(a) * r, position.z + sin(a) * r)
 
+	_heights.resize((RINGS + 1) * MESH_SAMPLES)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for ring in RINGS + 1:
 		# t = 0 at the summit, 1 at the waterline, beyond 1 is the seabed.
 		var t := 1.25 * ring / RINGS
-		for i in SAMPLES:
-			var a := TAU * i / SAMPLES
-			var x := cos(a) * _radii[i] * t
-			var z := sin(a) * _radii[i] * t
-			var h := 0.0
-			if t <= 1.0:
-				var rough := 0.72 + 0.28 * noise.get_noise_2d(x * 2.0 + 900.0, z * 2.0)
-				# Sharp ridges running down from the peak, as on a volcanic island.
-				var ridge := 1.0 - 0.45 * absf(noise.get_noise_2d(x * 0.9, z * 0.9 + 400.0))
-				h = PEAK_HEIGHT * pow(1.0 - t, 1.9) * rough * ridge
-			else:
-				h = -(t - 1.0) * 60.0
-			st.set_color(_land_color(t + 0.05 * noise.get_noise_2d(x * 3.0, z * 3.0 - 700.0)))
-			_heights[ring * SAMPLES + i] = h
+		for i in MESH_SAMPLES:
+			var a := TAU * i / MESH_SAMPLES
+			var reach := coast_radius(a) * t
+			var x := cos(a) * reach
+			var z := sin(a) * reach
+			var h := _height(a, t, x, z)
+			st.set_color(_land_color(a, t, x, z))
+			_heights[ring * MESH_SAMPLES + i] = h
 			st.add_vertex(Vector3(x, h, z))
 	for ring in RINGS:
-		for i in SAMPLES:
-			var j := (i + 1) % SAMPLES
-			var inner_i := ring * SAMPLES + i
-			var inner_j := ring * SAMPLES + j
-			var outer_i := (ring + 1) * SAMPLES + i
-			var outer_j := (ring + 1) * SAMPLES + j
+		for i in MESH_SAMPLES:
+			var j := (i + 1) % MESH_SAMPLES
+			var inner_i := ring * MESH_SAMPLES + i
+			var inner_j := ring * MESH_SAMPLES + j
+			var outer_i := (ring + 1) * MESH_SAMPLES + i
+			var outer_j := (ring + 1) * MESH_SAMPLES + j
 			st.add_index(inner_i)
 			st.add_index(outer_i)
 			st.add_index(outer_j)
@@ -88,18 +100,66 @@ func build(noise_seed: int) -> void:
 			st.add_index(inner_j)
 	st.generate_normals()
 
-	var mat := Paint.material(Color(1.0, 1.0, 1.0), 0.6, 0.85)
-
 	var inst := MeshInstance3D.new()
 	inst.mesh = st.commit()
-	inst.material_override = mat
+	inst.material_override = Paint.material(Color(1.0, 1.0, 1.0), 0.6, 0.85)
 	add_child(inst)
+
 	_bark = Paint.material(Color(0.40, 0.31, 0.22), 0.3, 0.85)
-	_fronds = Paint.material(Color(0.14, 0.32, 0.12), 0.3, 0.8)
+	_fronds = Paint.material(Color(0.15, 0.36, 0.13), 0.3, 0.8)
+	_trunk_mesh = CylinderMesh.new()
+	_trunk_mesh.top_radius = 0.6
+	_trunk_mesh.bottom_radius = 1.0
+	_trunk_mesh.height = 1.0
+	_trunk_mesh.radial_segments = 6
+	_trunk_mesh.rings = 1
+	_trunk_mesh.material = _bark
+	_crown_mesh = _frond_crown()
 	_build_landmarks()
 	_build_palms(noise_seed)
 	_build_forest(noise_seed)
 	_build_surf()
+	_build_waterfalls()
+	_build_villages(noise_seed)
+	_build_fort()
+	_build_peak_clouds()
+
+
+func _process(delta: float) -> void:
+	if _clouds != null:
+		_clouds.rotation.y += delta * 0.008   # the cloud on the peak drifts round it
+
+
+## How deeply the land is cut by valleys along a bearing: near 0 on the
+## crest of a ridge, larger down in a valley.
+func _valley(a: float) -> float:
+	return absf(_noise.get_noise_2d(cos(a) * 260.0 + 50.0, sin(a) * 260.0))
+
+
+## How far up the mountains a spot is: 0 at their foot, 1 at the summit.
+func _climb(t: float) -> float:
+	return clampf((PLAIN_FROM - t) / PLAIN_FROM, 0.0, 1.0)
+
+
+## Height of the land at bearing `a`, `t` of the way from the middle to the shore.
+func _height(a: float, t: float, x: float, z: float) -> float:
+	if t > 1.0:
+		return -(t - 1.0) * 60.0   # the seabed, shelving away
+	if t >= PLAIN_FROM:
+		# The coastal plain: nearly flat, rising gently inland.
+		var inland := (1.0 - t) / (1.0 - PLAIN_FROM)
+		# Lumpy near the shore, smoothing out where it meets the mountains.
+		var lumps := 0.15 * (1.0 - inland) * (_noise.get_noise_2d(x * 3.0, z * 3.0) - 1.0)
+		return 11.0 * pow(inland, 1.3) * (1.0 + lumps)
+	var m := _climb(t)
+	# Ridges and valleys radiate from the middle. They are deepest halfway up.
+	var carve := smoothstep(0.0, 0.3, _valley(a)) * sin(PI * clampf(m * 1.15, 0.0, 1.0))
+	var crags := 1.0 + 0.3 * _noise.get_noise_2d(x * 2.4 + 900.0, z * 2.4) * m
+	var h := 11.0 + PEAK_HEIGHT * pow(m, 1.2) * (1.0 - 0.6 * carve) * crags
+	# A second, lower summit to one side, so the skyline is not a single cone.
+	var second := Vector2(cos(2.2), sin(2.2)) * BASE_RADIUS * 0.42
+	var off := Vector2(x, z).distance_to(second) / (BASE_RADIUS * 0.2)
+	return h + 0.45 * PEAK_HEIGHT * exp(-off * off) * smoothstep(0.0, 0.25, m)
 
 
 func landmark_name(index: int) -> String:
@@ -197,37 +257,51 @@ func _palm_clump(at: Vector3, rng: RandomNumberGenerator) -> float:
 
 
 func _palm(foot: Vector3, height: float, rng: RandomNumberGenerator) -> void:
+	var lean := Basis.from_euler(Vector3(rng.randf_range(-0.14, 0.14), rng.randf_range(0.0, TAU),
+			rng.randf_range(-0.14, 0.14)))
 	var trunk := MeshInstance3D.new()
-	var stem := CylinderMesh.new()
-	stem.top_radius = 0.16
-	stem.bottom_radius = 0.28
-	stem.height = height
-	stem.radial_segments = 6
-	stem.rings = 1
-	trunk.mesh = stem
-	trunk.material_override = _bark
-	trunk.position = foot + Vector3(0.0, height * 0.5 - 0.3, 0.0)
-	trunk.rotation = Vector3(rng.randf_range(-0.12, 0.12), 0.0, rng.randf_range(-0.12, 0.12))
+	trunk.mesh = _trunk_mesh
+	trunk.transform = _trunk_transform(foot, height, lean)
 	add_child(trunk)
-	# The crown: drooping fronds, as flattened cones set in a ring.
-	for n in 6:
-		var frond := MeshInstance3D.new()
-		var leaf := CylinderMesh.new()
-		leaf.top_radius = 0.02
-		leaf.bottom_radius = 0.55
-		leaf.height = 3.4
-		leaf.radial_segments = 4
-		leaf.rings = 1
-		frond.mesh = leaf
-		frond.material_override = _fronds
-		var turn := TAU * n / 6.0 + rng.randf_range(-0.3, 0.3)
-		frond.rotation = Vector3(rng.randf_range(1.75, 2.1), turn, 0.0)
-		frond.scale = Vector3(1.0, 1.0, 0.25)
-		frond.position = foot + Vector3(sin(turn) * 1.4, height - 0.5, cos(turn) * 1.4)
-		add_child(frond)
+	var crown := MeshInstance3D.new()
+	crown.mesh = _crown_mesh
+	crown.transform = Transform3D(lean, foot + lean.y * height)
+	add_child(crown)
 
 
-## Forest on the slopes: many small tree crowns drawn as one batch.
+## Where a trunk of a given height stands, leaning as `lean` says.
+func _trunk_transform(foot: Vector3, height: float, lean: Basis) -> Transform3D:
+	return Transform3D(lean * Basis.from_scale(Vector3(0.26, height, 0.26)),
+			foot + lean.y * height * 0.5)
+
+
+## The head of a coconut palm: a ring of long fronds that arch up and droop.
+func _frond_crown() -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var out: Array[float] = [0.1, 1.3, 2.5, 3.3]
+	var up: Array[float] = [0.25, 0.65, 0.15, -0.9]
+	var wide: Array[float] = [0.26, 0.42, 0.3, 0.03]
+	for k in 9:
+		var a := TAU * k / 9.0
+		var along := Vector3(cos(a), 0.0, sin(a))
+		var across := Vector3(-sin(a), 0.0, cos(a))
+		for n in out.size() - 1:
+			var a0 := along * out[n] + Vector3.UP * up[n]
+			var a1 := along * out[n + 1] + Vector3.UP * up[n + 1]
+			var corners: Array[Vector3] = [
+				a0 - across * wide[n], a0 + across * wide[n],
+				a1 + across * wide[n + 1], a1 - across * wide[n + 1]]
+			for index: int in [0, 1, 2, 0, 2, 3]:
+				st.add_vertex(corners[index])
+	st.generate_normals()
+	var mesh := st.commit()
+	mesh.surface_set_material(0, _fronds)
+	return mesh
+
+
+## Forest on the mountain sides and breadfruit groves on the plain: many
+## tree crowns drawn as one batch.
 func _build_forest(forest_seed: int) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = forest_seed + 7
@@ -236,25 +310,35 @@ func _build_forest(forest_seed: int) -> void:
 	crown.height = 1.7
 	crown.radial_segments = 6
 	crown.rings = 3
-	var leaves := Paint.material(Color(1.0, 1.0, 1.0), 0.4, 0.8)
-	crown.material = leaves
+	crown.material = Paint.material(Color(1.0, 1.0, 1.0), 0.4, 0.8)
 
 	var batch := MultiMesh.new()
 	batch.transform_format = MultiMesh.TRANSFORM_3D
 	batch.use_colors = true
 	batch.mesh = crown
-	batch.instance_count = TREES
-	for n in TREES:
+	batch.instance_count = TREES + GROVE_TREES
+	for n in TREES + GROVE_TREES:
+		var grove := n >= TREES
 		var a := rng.randf_range(0.0, TAU)
-		var t := rng.randf_range(0.22, 0.86)
+		# Forest climbs to where the rock is too steep; groves stand on the plain.
+		var t := rng.randf_range(PLAIN_FROM + 0.02, 0.95) if grove else rng.randf_range(0.2, PLAIN_FROM)
+		# Trees crowd into the valleys and thin out on the high ridges.
+		if not grove and _climb(t) > 0.45 + 0.9 * _valley(a):
+			t = rng.randf_range(0.5, PLAIN_FROM)
+		# Keep the landing beach open.
+		if grove and absf(wrapf(a - keep_clear_angle, -PI, PI)) < 0.14:
+			a += 0.3
 		var r := coast_radius(a) * t
 		var world := Vector2(position.x + cos(a) * r, position.z + sin(a) * r)
-		var size := rng.randf_range(4.0, 8.0)
+		var size := rng.randf_range(5.0, 8.5) if grove else rng.randf_range(3.5, 7.5)
 		var at := Vector3(cos(a) * r, surface_height(world) + size * 0.45, sin(a) * r)
-		var shape := Basis().scaled(Vector3(size, size * rng.randf_range(0.8, 1.3), size))
+		var shape := Basis.from_scale(Vector3(size, size * rng.randf_range(0.8, 1.3), size))
 		batch.set_instance_transform(n, Transform3D(shape, at))
 		var green := rng.randf_range(0.0, 1.0)
-		batch.set_instance_color(n, Color(0.10 + 0.10 * green, 0.26 + 0.14 * green, 0.10))
+		var leaf := Color(0.09 + 0.09 * green, 0.24 + 0.14 * green, 0.09)
+		if grove:
+			leaf = Color(0.14 + 0.08 * green, 0.34 + 0.12 * green, 0.10)
+		batch.set_instance_color(n, leaf)
 	var forest := MultiMeshInstance3D.new()
 	forest.multimesh = batch
 	add_child(forest)
@@ -297,12 +381,13 @@ func surface_height(world: Vector2) -> float:
 	var t := offset.length() / coast_radius(angle)
 	var ring_f := clampf(t / 1.25 * RINGS, 0.0, RINGS - 0.001)
 	var ring := int(ring_f)
-	var f := angle / TAU * SAMPLES
-	var i := int(f) % SAMPLES
-	var j := (i + 1) % SAMPLES
-	var inner := lerpf(_heights[ring * SAMPLES + i], _heights[ring * SAMPLES + j], f - floorf(f))
-	var outer := lerpf(_heights[(ring + 1) * SAMPLES + i], _heights[(ring + 1) * SAMPLES + j],
-			f - floorf(f))
+	var f := angle / TAU * MESH_SAMPLES
+	var i := int(f) % MESH_SAMPLES
+	var j := (i + 1) % MESH_SAMPLES
+	var part := f - floorf(f)
+	var inner := lerpf(_heights[ring * MESH_SAMPLES + i], _heights[ring * MESH_SAMPLES + j], part)
+	var outer := lerpf(_heights[(ring + 1) * MESH_SAMPLES + i],
+			_heights[(ring + 1) * MESH_SAMPLES + j], part)
 	return lerpf(inner, outer, ring_f - ring)
 
 
@@ -315,27 +400,259 @@ func coast_radius(angle: float) -> float:
 	return lerpf(_radii[i], _radii[j], f - floorf(f))
 
 
-## Coconut palms along the shore.
+## Coconut palms all round the shore and across the plain, drawn as two
+## batches: the trunks and the crowns.
 func _build_palms(palm_seed: int) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = palm_seed
+	var trunks := MultiMesh.new()
+	trunks.transform_format = MultiMesh.TRANSFORM_3D
+	trunks.mesh = _trunk_mesh
+	trunks.instance_count = PALMS
+	var crowns := MultiMesh.new()
+	crowns.transform_format = MultiMesh.TRANSFORM_3D
+	crowns.mesh = _crown_mesh
+	crowns.instance_count = PALMS
 	for k in PALMS:
 		var a := rng.randf_range(0.0, TAU)
-		if absf(wrapf(a - keep_clear_angle, -PI, PI)) < 0.2:
-			continue
-		var r := coast_radius(a) * rng.randf_range(0.86, 0.94)
+		# Keep the landing beach open.
+		if absf(wrapf(a - keep_clear_angle, -PI, PI)) < 0.14:
+			a += 0.3
+		var r := coast_radius(a) * rng.randf_range(0.84, 0.975)
 		var world := Vector2(position.x + cos(a) * r, position.z + sin(a) * r)
-		_palm(Vector3(cos(a) * r, surface_height(world), sin(a) * r),
-				rng.randf_range(7.0, 11.0), rng)
+		var foot := Vector3(cos(a) * r, surface_height(world) - 0.2, sin(a) * r)
+		var height := rng.randf_range(8.0, 14.0)
+		# Palms by the water lean out over it, toward the light.
+		var out := Vector3(cos(a), 0.0, sin(a)) * rng.randf_range(0.0, 0.22)
+		var lean := Basis.from_euler(Vector3(out.z + rng.randf_range(-0.08, 0.08),
+				rng.randf_range(0.0, TAU), -out.x + rng.randf_range(-0.08, 0.08)))
+		trunks.set_instance_transform(k, _trunk_transform(foot, height, lean))
+		crowns.set_instance_transform(k, Transform3D(lean, foot + lean.y * height))
+	for batch: MultiMesh in [trunks, crowns]:
+		var grove := MultiMeshInstance3D.new()
+		grove.multimesh = batch
+		add_child(grove)
 
 
-func _land_color(t: float) -> Color:
+## A few waterfalls, in the deepest valleys.
+func _build_waterfalls() -> void:
+	var chosen: Array[float] = []
+	for attempt in 3:
+		var best := -1.0
+		var best_angle := 0.0
+		for k in 180:
+			var a := TAU * k / 180.0
+			var clear := true
+			for other in chosen:
+				if absf(wrapf(a - other, -PI, PI)) < 0.9:
+					clear = false
+			if clear and _valley(a) > best:
+				best = _valley(a)
+				best_angle = a
+		chosen.append(best_angle)
+
+	var mat := ShaderMaterial.new()
+	mat.shader = WATERFALL_SHADER
+	for a in chosen:
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var across := Vector3(-sin(a), 0.0, cos(a)) * 1.1
+		var steps := 22
+		var fallen := 0.0
+		var last := Vector3.ZERO
+		for n in steps + 1:
+			var t := lerpf(0.2, 0.62, float(n) / steps)
+			var r := coast_radius(a) * t
+			var world := Vector2(position.x + cos(a) * r, position.z + sin(a) * r)
+			var mid := Vector3(cos(a) * r, surface_height(world) + 0.7, sin(a) * r)
+			if n > 0:
+				fallen += mid.distance_to(last)
+			last = mid
+			st.set_uv(Vector2(0.0, fallen))
+			st.add_vertex(mid - across)
+			st.set_uv(Vector2(1.0, fallen))
+			st.add_vertex(mid + across)
+		for n in steps:
+			var p := n * 2
+			for index: int in [0, 1, 3, 0, 3, 2]:
+				st.add_index(p + index)
+		st.generate_normals()
+		var fall := MeshInstance3D.new()
+		fall.mesh = st.commit()
+		fall.material_override = mat
+		fall.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(fall)
+
+
+## Villages on the plain: long thatched houses, open at the sides, with
+## canoes drawn up on the beach before them and smoke from the cooking fires.
+func _build_villages(village_seed: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = village_seed + 31
+	var thatch := Paint.material(Color(0.62, 0.50, 0.28), 0.35, 0.9)
+	var wood := Paint.material(Color(0.36, 0.24, 0.14), 0.3, 0.85)
+	var near_landing := keep_clear_angle if keep_clear_angle < 100.0 else 4.5
+	var sites: Array[float] = [near_landing + 0.42, near_landing - 0.5, 0.7, 2.5, 3.6]
+	for site in sites:
+		for n in 5:
+			var a := site + rng.randf_range(-0.07, 0.07)
+			var r := coast_radius(a) * rng.randf_range(0.86, 0.94)
+			var world := Vector2(position.x + cos(a) * r, position.z + sin(a) * r)
+			var foot := Vector3(cos(a) * r, surface_height(world), sin(a) * r)
+			var house := Node3D.new()
+			house.position = foot
+			house.rotation.y = rng.randf_range(0.0, PI)
+			add_child(house)
+			var long := rng.randf_range(3.0, 4.6)
+			_lump(house, Vector3(long, 1.6, 2.0), Vector3(0.0, 2.1, 0.0), thatch)
+			for post_x: float in [-0.75, 0.0, 0.75]:
+				for post_z: float in [-1.5, 1.5]:
+					_post(house, Vector3(post_x * long, 1.0, post_z), 2.0, 0.09, wood)
+		# Canoes hauled up above the tide: a slim hull and an outrigger float.
+		for n in 3:
+			var a := site + (n - 1) * 0.035
+			var r := coast_radius(a) * 0.985
+			var world := Vector2(position.x + cos(a) * r, position.z + sin(a) * r)
+			var canoe := Node3D.new()
+			canoe.position = Vector3(cos(a) * r, surface_height(world) + 0.3, sin(a) * r)
+			canoe.rotation.y = -a + rng.randf_range(-0.3, 0.3)
+			add_child(canoe)
+			_lump(canoe, Vector3(3.6, 0.3, 0.32), Vector3.ZERO, wood)
+			_lump(canoe, Vector3(2.2, 0.1, 0.1), Vector3(0.0, -0.1, 1.5), wood)
+			for boom: float in [-1.0, 1.0]:
+				_post(canoe, Vector3(boom, 0.15, 0.75), 0.06, 0.05, wood).scale = Vector3(1.0, 1.0, 30.0)
+		# Smoke from a cooking fire.
+		var r_fire := coast_radius(site) * 0.9
+		var smoke := CPUParticles3D.new()
+		var puff_mat := StandardMaterial3D.new()
+		puff_mat.albedo_color = Color(0.85, 0.85, 0.88, 0.22)
+		puff_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		puff_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		puff_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		puff_mat.billboard_keep_scale = true
+		var puff := QuadMesh.new()
+		puff.size = Vector2(5.0, 5.0)
+		puff.material = puff_mat
+		smoke.mesh = puff
+		smoke.amount = 16
+		smoke.lifetime = 14.0
+		smoke.preprocess = 14.0
+		smoke.direction = Vector3(0.3, 1.0, 0.1)
+		smoke.spread = 12.0
+		smoke.initial_velocity_min = 1.6
+		smoke.initial_velocity_max = 2.6
+		smoke.gravity = Vector3(0.25, 0.0, 0.1)
+		smoke.scale_amount_min = 0.5
+		smoke.scale_amount_max = 1.6
+		var fire := Vector2(cos(site), sin(site)) * r_fire
+		smoke.position = Vector3(fire.x,
+				surface_height(Vector2(position.x, position.z) + fire) + 2.0, fire.y)
+		add_child(smoke)
+
+
+## Fort Venus, on the north point: the camp the ship's company built to
+## guard the observatory for the transit. A ring of palisade, tents, and a flag.
+func _build_fort() -> void:
+	var a := TAU * 0.752
+	var r := coast_radius(a) * 0.88
+	var world := Vector2(position.x + cos(a) * r, position.z + sin(a) * r)
+	var fort := Node3D.new()
+	fort.position = Vector3(cos(a) * r, surface_height(world), sin(a) * r)
+	add_child(fort)
+	var timber := Paint.material(Color(0.42, 0.32, 0.20), 0.3, 0.85)
+	var canvas := Paint.material(Color(0.86, 0.82, 0.70), 0.3, 0.8)
+	for k in 30:
+		var b := TAU * k / 30.0
+		if k % 30 < 2:
+			continue   # the gate
+		_post(fort, Vector3(cos(b) * 10.0, 1.1, sin(b) * 10.0), 2.2, 0.16, timber)
+	for k in 3:
+		var tent := MeshInstance3D.new()
+		var prism := PrismMesh.new()
+		prism.size = Vector3(3.0, 2.2, 4.0)
+		tent.mesh = prism
+		tent.material_override = canvas
+		tent.position = Vector3(-4.0 + 4.0 * k, 1.1, 1.5 * (k % 2))
+		tent.rotation.y = 0.3 * k
+		fort.add_child(tent)
+	_post(fort, Vector3(0.0, 4.5, -5.0), 9.0, 0.07, timber)
+	var flag := MeshInstance3D.new()
+	var cloth := BoxMesh.new()
+	cloth.size = Vector3(2.4, 1.4, 0.03)
+	flag.mesh = cloth
+	flag.material_override = Paint.material(Color(0.72, 0.10, 0.09), 0.3, 0.8)
+	flag.position = Vector3(1.25, 8.2, -5.0)
+	fort.add_child(flag)
+
+
+## The cloud that gathers on a high island's peak most afternoons.
+func _build_peak_clouds() -> void:
+	_clouds = Node3D.new()
+	_clouds.position = Vector3(0.0, PEAK_HEIGHT * 0.86, 0.0)
+	add_child(_clouds)
+	var white := Paint.material(Color(0.96, 0.96, 0.97), 6.0, 1.0)
+	white.set_shader_parameter("variation", 0.06)
+	white.set_shader_parameter("ground", 0.0)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 88
+	for k in 9:
+		var a := TAU * k / 9.0 + rng.randf_range(-0.3, 0.3)
+		var out := rng.randf_range(30.0, 95.0)
+		var blob := _lump(_clouds, Vector3(rng.randf_range(38.0, 62.0), rng.randf_range(11.0, 18.0),
+				rng.randf_range(30.0, 46.0)), Vector3(cos(a) * out, rng.randf_range(-8.0, 12.0),
+				sin(a) * out), white)
+		blob.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+## A rounded lump, given by its half-size along each axis.
+func _lump(parent: Node3D, radii: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
+	var inst := MeshInstance3D.new()
+	var mesh := SphereMesh.new()
+	mesh.radius = 1.0
+	mesh.height = 2.0
+	mesh.radial_segments = 12
+	mesh.rings = 6
+	inst.mesh = mesh
+	inst.material_override = mat
+	inst.position = pos
+	inst.scale = radii
+	parent.add_child(inst)
+	return inst
+
+
+## An upright post, centred at `pos`.
+func _post(parent: Node3D, pos: Vector3, height: float, radius: float,
+		mat: Material) -> MeshInstance3D:
+	var inst := MeshInstance3D.new()
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radius
+	mesh.bottom_radius = radius
+	mesh.height = height
+	mesh.radial_segments = 6
+	mesh.rings = 1
+	inst.mesh = mesh
+	inst.material_override = mat
+	inst.position = pos
+	parent.add_child(inst)
+	return inst
+
+
+## The colour of the land: sand at the water, bright groves on the plain,
+## dark forest in the valleys, paler fern higher up, bare rock on the crests.
+func _land_color(a: float, t: float, x: float, z: float) -> Color:
+	var patchy := _noise.get_noise_2d(x * 3.0, z * 3.0 - 700.0)
 	if t > 1.0:
 		return Color(0.55, 0.60, 0.45)   # shallows
-	if t > 0.9:
-		return Color(0.20, 0.19, 0.18).lerp(Color(0.45, 0.40, 0.33), (t - 0.9) * 10.0)  # dark sand
-	if t > 0.5:
-		return Color(0.16, 0.34, 0.14)   # forest
-	if t > 0.25:
-		return Color(0.24, 0.38, 0.18)   # high slopes
-	return Color(0.36, 0.35, 0.30)       # bare rock
+	if t > 0.965:
+		# Black volcanic sand on most beaches, pale coral sand on some.
+		var pale := smoothstep(0.1, 0.3, _noise.get_noise_2d(cos(a) * 90.0 - 300.0, sin(a) * 90.0))
+		return Color(0.17, 0.16, 0.16).lerp(Color(0.80, 0.74, 0.58), pale)
+	if t >= PLAIN_FROM:
+		return Color(0.26, 0.44, 0.17).lerp(Color(0.36, 0.50, 0.20), 0.5 + 0.5 * patchy)
+	var m := _climb(t)
+	var valley := _valley(a)
+	var green := Color(0.12, 0.30, 0.12).lerp(Color(0.30, 0.42, 0.18), smoothstep(0.25, 0.65, m))
+	green = green.darkened(0.3 * smoothstep(0.12, 0.35, valley))
+	var bare := smoothstep(0.6, 0.92, m) + 0.6 * (1.0 - smoothstep(0.0, 0.1, valley)) * m
+	return green.lerp(Color(0.34, 0.31, 0.28).lerp(Color(0.46, 0.42, 0.38), 0.5 + 0.5 * patchy),
+			clampf(bare, 0.0, 1.0))

@@ -31,7 +31,7 @@ func build(coast_angle: float) -> void:
 
 	# The set stands on the beach, turned so that its -Z looks out to sea.
 	_set = Node3D.new()
-	var foot := centre + out * (shore_radius * 0.93)
+	var foot := centre + out * (shore_radius * 0.975)   # on the sand, just above the tide
 	_set.position = Vector3(foot.x, 0.0, foot.y)
 	_set.rotation.y = atan2(-out.x, -out.y)
 	add_child(_set)

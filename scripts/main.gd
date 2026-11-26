@@ -105,6 +105,10 @@ func _ready() -> void:
 	island.keep_clear_angle = wrapf(MATAVAI_ANGLE, 0.0, TAU)
 	add_child(island)
 	island.build(1769)
+	var canoes := Canoes.new()
+	canoes.island = island
+	canoes.sea = sea
+	add_child(canoes)
 	var gulls := Birds.new()
 	gulls.count = 14
 	gulls.spread = Vector2(240.0, 430.0)

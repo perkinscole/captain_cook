@@ -133,6 +133,16 @@ first prototype also tried holding the wheel directly; giving orders was chosen.
   wave, and flying fish break from the sea ahead. She pushes a V of bow waves
   with ripples inside it and white water along her sides, and in a fresh
   wind the crests sharpen, break, and leave foam behind them.
+- **The island.** A stand-in for Tahiti, shaped like the stump of an old
+  volcano: sharp peaks with a second lower summit, knife-edged ridges and deep
+  valleys running down to the sea, waterfalls in the deepest valleys, cloud
+  gathered round the peak, and a narrow green plain round the shore. Forest
+  fills the valleys and thins on the ridges; breadfruit groves and hundreds
+  of leaning coconut palms cover the plain; beaches are black volcanic sand
+  with stretches of pale coral sand. Five villages of thatched houses stand on
+  the plain with canoes drawn up before them and smoke from their fires,
+  outrigger canoes paddle along inside the reefs and one sails further out,
+  and Fort Venus stands on the north point. The shape is invented.
 - **Things that move.** Order sail and six topmen run to the shrouds, climb
   to the yard and lay out along it; the sail does not move until they are
   there, then it is let fall from the yard or gathered up into a furl. The
@@ -207,7 +217,8 @@ Systems are kept separate so each can be swapped:
 | `scripts/weather.gd` | Fair weather, squalls and mist; drives the wind and visibility |
 | `scripts/ship.gd` | Ship movement from wind, sail and rudder |
 | `scripts/control_mode.gd`, `orders_mode.gd` | How the ship is steered (giving orders) |
-| `scripts/island.gd` | Procedural island and its coastline |
+| `scripts/island.gd` | The island: land, trees, villages, the fort, and its coastline |
+| `scripts/canoes.gd` | Canoes out on the water |
 | `scripts/seabed.gd` | Water depth and hidden reefs |
 | `scripts/lead_line.gd`, `lead_gauge.gd` | Heaving the lead, and the timing gauge |
 | `scripts/charting.gd` | Coast sketched, bearings and fixes, accuracy, the ship's track |
