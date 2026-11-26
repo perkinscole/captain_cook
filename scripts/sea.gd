@@ -29,7 +29,7 @@ const WIND_WAVES: Array[Vector3] = [
 var wind: Wind
 var sea_state: float = 0.0   ## extra roughness from the weather, 0..1
 var storm: float = 0.0       ## darkens the water
-var sky_color := Color(0.85, 0.72, 0.55)
+var sky_color := Color(0.62, 0.80, 0.95)
 var time: float = 0.0
 
 var _mesh: MeshInstance3D

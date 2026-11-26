@@ -97,7 +97,11 @@ first prototype also tried holding the wheel directly; giving orders was chosen.
   ridges. Strokes stay about the same size on screen near or far. Over the
   whole picture there is a light softening into dabs, then the colouring of an
   old painting: deep shadows, warm lights, yellowed varnish and a darkened
-  border. P turns the softening and colouring on and off.
+  border. P turns the softening and colouring on and off. The sea and sky are
+  painted too: strokes on the sea lie along the swell, are fixed to the water
+  and drift on with the waves, and foam is laid in dabs; strokes in the sky
+  are fixed to the dome of the sky, and the clouds are built of dabs with
+  broken edges. The fair-weather sky is blue.
 - **Waves.** Two long swells that never change, plus wind waves that run
   before the local wind and build as it blows harder, so a squall raises a
   real sea. Crests are sharp and troughs wide, whitecaps appear when it
@@ -175,6 +179,7 @@ Systems are kept separate so each can be swapped:
 | `scripts/wind.gd` | Wind direction and strength over time |
 | `scripts/sea.gd`, `shaders/ocean.gdshader` | The waves, and how high the water is under the ship |
 | `scripts/wake.gd`, `shaders/wake.gdshader` | The ship's wake |
+| `shaders/paint_strokes.gdshaderinc` | What one brush stroke is, shared by everything painted |
 | `shaders/paint.gdshaderinc`, `painted.gdshader`, `scripts/paint.gd` | Brush strokes painted onto surfaces |
 | `shaders/painterly.gdshader`, `impasto.gdshader` | Softening into dabs, and the colouring of an old painting |
 | `scripts/sound_board.gd`, `audio/`, `tools/make_sounds.py` | Sounds, and how they are made |

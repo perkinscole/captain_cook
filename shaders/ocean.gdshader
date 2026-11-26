@@ -28,6 +28,29 @@ varying vec3 world_pos;
 varying float crest;
 varying float fold;
 
+#include "res://shaders/paint.gdshaderinc"
+
+// The paint on the sea. Strokes lie along the swell, are fixed to the
+// water (not the screen or the ship), and drift on with the waves. Two
+// sets of strokes are faded in and out in turn so that they can keep
+// moving for ever without the picture jumping.
+vec4 sea_paint(vec2 p, vec2 drift_dir, float t, float screen_px) {
+	float px = max(length(dFdx(p)), length(dFdy(p)));
+	float level = log2(max(px * screen_px / 0.5, 1.0));
+	float size = 0.5 * exp2(floor(level));
+	float blend = smoothstep(0.55, 1.0, fract(level));
+	float cycle = 9.0;
+	float phase_a = fract(t / cycle);
+	float phase_b = fract(t / cycle + 0.5);
+	vec2 pa = p - drift_dir * (phase_a * cycle * 0.7);
+	vec2 pb = p - drift_dir * (phase_b * cycle * 0.7) + vec2(37.0, 11.0);
+	float turn = 0.93;   // along the crests of the long swell
+	vec3 a = mix(paint_layers(pa / size, turn, 0.3), paint_layers(pa / (size * 2.0), turn, 0.3), blend);
+	vec3 b = mix(paint_layers(pb / size, turn, 0.3), paint_layers(pb / (size * 2.0), turn, 0.3), blend);
+	vec3 both = mix(b, a, 1.0 - abs(2.0 * phase_a - 1.0));
+	return vec4(both.xy, mix(size, size * 2.0, blend), both.z * 0.5);
+}
+
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
@@ -99,6 +122,8 @@ void fragment() {
 	float nearness = clamp(1.0 - length(VERTEX) / 600.0, 0.15, 1.0);
 	float ripple = (0.10 + 0.12 * storm) * nearness;
 	NORMAL = normalize(NORMAL + (VIEW_MATRIX * vec4(-slope.x, 0.0, -slope.y, 0.0)).xyz * ripple);
+	vec4 paint = sea_paint(p, wave_a[2].xy, t, 90.0 * VIEWPORT_SIZE.y / 720.0);
+	NORMAL = paint_relief(NORMAL, VERTEX, paint, 0.6);
 
 	float depth = 60.0;
 	if (has_depth_map) {
@@ -109,13 +134,14 @@ void fragment() {
 	}
 
 	// Deep water is nearly black-blue; crests are greener; shallows are pale.
-	vec3 deep = vec3(0.010, 0.055, 0.105);
-	vec3 lit = vec3(0.020, 0.16, 0.22);
+	vec3 deep = vec3(0.010, 0.060, 0.150);
+	vec3 lit = vec3(0.030, 0.20, 0.34);
 	vec3 shallow = vec3(0.10, 0.48, 0.44);
 	vec3 sea = mix(deep, lit, smoothstep(-0.6, 0.9, crest));
 	sea += vec3(0.02, 0.10, 0.09) * smoothstep(0.35, 1.0, crest);  // light through the crests
 	float shoal = 1.0 - smoothstep(1.5, 14.0, depth);
 	sea = mix(sea, shallow, shoal * 0.6 * (1.0 - 0.6 * storm));
+	sea = paint_colour(sea, paint, 0.16, vec3(p.x, 0.0, p.y) * 0.25);
 
 	// Seen at a low angle the sea takes the colour of the sky.
 	float facing = clamp(dot(NORMAL, VIEW), 0.0, 1.0);
@@ -126,7 +152,8 @@ void fragment() {
 	float cap = smoothstep(0.06, 0.15, fold) * smoothstep(0.3, 0.7, lace + 0.3 * crest);
 	float wash = 1.0 - smoothstep(0.3, 3.2, depth);
 	float shore = wash * smoothstep(0.35, 0.65, lace + 0.25 * sin(t * 0.9 + depth * 2.0));
-	float foam = clamp(cap + shore, 0.0, 1.0);
+	// Foam is laid on in dabs too: whole strokes of white, not a smooth haze.
+	float foam = smoothstep(0.22, 0.5, clamp(cap + shore, 0.0, 1.0) * (0.55 + 0.9 * paint.x));
 
 	sea = mix(sea, sea * 0.5 + vec3(0.03, 0.04, 0.045), storm * 0.8);
 	ALBEDO = mix(sea, vec3(0.93, 0.95, 0.93), foam);

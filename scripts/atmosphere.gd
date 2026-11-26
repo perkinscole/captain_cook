@@ -6,12 +6,12 @@ extends Node3D
 
 const SKY_SHADER := preload("res://shaders/sky.gdshader")
 
-const FAIR_ZENITH := Color(0.10, 0.25, 0.50)
-const FAIR_HORIZON := Color(0.90, 0.74, 0.54)
+const FAIR_ZENITH := Color(0.13, 0.36, 0.78)
+const FAIR_HORIZON := Color(0.62, 0.80, 0.95)
 const FOUL_ZENITH := Color(0.08, 0.10, 0.13)
 const FOUL_HORIZON := Color(0.34, 0.36, 0.37)
-const LOW_SUN := Color(1.0, 0.70, 0.42)
-const HIGH_SUN := Color(1.0, 0.93, 0.80)
+const LOW_SUN := Color(1.0, 0.88, 0.70)
+const HIGH_SUN := Color(1.0, 0.97, 0.90)
 
 var horizon := FAIR_HORIZON  ## the colour of the sky where it meets the sea
 var shelter: float = 0.0     ## 0 = out on deck, 1 = below, where little daylight reaches
@@ -85,15 +85,15 @@ func apply(gloom: float, visibility: float, wind_from: float, day_part: float,
 	_sun.light_color = LOW_SUN.lerp(HIGH_SUN, height)
 	_sun.light_energy = lerpf(1.6, 0.25, gloom)
 
-	horizon = FAIR_HORIZON.lerp(LOW_SUN, 0.35 * (1.0 - height)).lerp(FOUL_HORIZON, gloom)
+	horizon = FAIR_HORIZON.lerp(LOW_SUN, 0.08 * (1.0 - height)).lerp(FOUL_HORIZON, gloom)
 	var blow := Compass.to_vector(wind_from) * -0.013
 	_sky_mat.set_shader_parameter("zenith", FAIR_ZENITH.lerp(FOUL_ZENITH, gloom))
 	_sky_mat.set_shader_parameter("horizon", horizon)
 	_sky_mat.set_shader_parameter("coverage", lerpf(0.45, 0.92, gloom))
 	_sky_mat.set_shader_parameter("cloud_shade",
-			Color(0.40, 0.41, 0.50).lerp(Color(0.14, 0.15, 0.18), gloom))
+			Color(0.55, 0.61, 0.74).lerp(Color(0.14, 0.15, 0.18), gloom))
 	_sky_mat.set_shader_parameter("cloud_lit",
-			Color(1.0, 0.93, 0.82).lerp(Color(0.45, 0.46, 0.48), gloom))
+			Color(1.0, 0.98, 0.94).lerp(Color(0.45, 0.46, 0.48), gloom))
 	_sky_mat.set_shader_parameter("drift", blow)
 	_sky_mat.set_shader_parameter("cloud_time", _cloud_time)
 
