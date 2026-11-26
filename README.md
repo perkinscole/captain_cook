@@ -104,7 +104,7 @@ first prototype also tried holding the wheel directly; giving orders was chosen.
 
 ## Running it
 
-1. Install [Godot 4.3 or newer](https://godotengine.org/download) (standard build, not .NET).
+1. Install [Godot 4.7](https://godotengine.org/download) (standard build, not .NET). The project was first written against 4.3.
 2. In the Godot project manager choose **Import** and pick `project.godot`.
 3. Press **F5**.
 
@@ -162,3 +162,9 @@ Systems are kept separate so each can be swapped:
 | `scripts/story_state.gd` | What the story remembers (Cook's trust, flags) |
 | `story/cook_scenes.gd` | Conversations with Cook, as data |
 | `scripts/main.gd` | Builds the scene and wires the above together |
+
+## Version control note
+
+Godot (4.4 and later) writes a small `.uid` file beside every script and
+shader. Commit those along with the code. The `.godot/` folder is the editor's
+cache and stays out of the repository.
