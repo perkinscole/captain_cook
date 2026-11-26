@@ -77,11 +77,11 @@ func _ready() -> void:
 
 	sound = SoundBoard.new()
 	add_child(sound)
-	sea = Sea.new()
-	add_child(sea)
-
 	wind = Wind.new()
 	add_child(wind)
+	sea = Sea.new()
+	sea.wind = wind
+	add_child(sea)
 	weather = Weather.new()
 	weather.wind = wind
 	weather.held = true  # fair weather until the lessons are over
@@ -107,7 +107,7 @@ func _ready() -> void:
 	add_child(landfall)
 	landfall.build(MATAVAI_ANGLE)
 	seabed.clear_around(landfall.anchorage, Landfall.ANCHOR_RADIUS + 60.0)
-	sea.set_reefs(seabed.reefs)
+	sea.set_depth_map(seabed, Vector2(island.position.x, island.position.z))
 
 	ship = Ship.new()
 	ship.wind = wind
@@ -116,6 +116,11 @@ func _ready() -> void:
 	ship.sail_carried_away.connect(_on_sail_carried_away)
 	ship.sail_repaired.connect(_on_sail_repaired)
 	_last_safe = Vector2(START_POSITION.x, START_POSITION.z)
+	sea.follow(ship.position)
+	var wake := Wake.new()
+	wake.ship = ship
+	wake.sea = sea
+	add_child(wake)
 	var visual := ShipVisual.new()
 	visual.ship = ship
 	ship.add_child(visual)

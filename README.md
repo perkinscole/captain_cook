@@ -92,8 +92,12 @@ first prototype also tried holding the wheel directly; giving orders was chosen.
 - **Painted look.** A filter turns the picture into dabs of paint, with glowing
   highlights and a darkened border. P turns it on and off. If the game runs
   slowly, turn it off first.
-- **Sea and sky.** Real swells that the ship rides, with foam and reflected
-  sky; surf along the shore; drifting clouds that thicken in a squall; a sun
+- **Waves.** Two long swells that never change, plus wind waves that run
+  before the local wind and build as it blows harder, so a squall raises a
+  real sea. Crests are sharp and troughs wide, whitecaps appear when it
+  freshens, shallows and reefs show pale, the shore has white water, and the
+  ship leaves a wake that spreads and fades astern.
+- **Sea and sky.** Surf along the shore; drifting clouds that thicken in a squall; a sun
   that climbs and sinks through the day; fog with depth that catches the
   light; and seabirds over the island and in the ship's wake.
 - **Spyglass.** Q (or holding the right mouse button) raises a spyglass. The
@@ -148,6 +152,7 @@ Systems are kept separate so each can be swapped:
 | --- | --- |
 | `scripts/wind.gd` | Wind direction and strength over time |
 | `scripts/sea.gd`, `shaders/ocean.gdshader` | The waves, and how high the water is under the ship |
+| `scripts/wake.gd`, `shaders/wake.gdshader` | The ship's wake |
 | `shaders/painterly.gdshader` | The painted look |
 | `scripts/sound_board.gd`, `audio/`, `tools/make_sounds.py` | Sounds, and how they are made |
 | `scripts/ui/` | Theme, compass, panels, spyglass, crew cards, title and pause pages |
