@@ -1,7 +1,10 @@
 # Models
 
-Models generated with Meshy from reference pictures. They are not used by the
-game yet: everything in the game is still built in code.
+Models generated with Meshy from reference pictures.
+
+The seaman is in the game as the three hands who walk their beats about the
+deck (`scripts/seaman_body.gd`). Everyone else, and the gun, are still built
+in code.
 
 | File | What it is |
 | --- | --- |

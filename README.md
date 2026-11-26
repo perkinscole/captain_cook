@@ -213,6 +213,7 @@ Systems are kept separate so each can be swapped:
 | `scripts/birds.gd`, `shaders/surf.gdshader` | Seabirds, and surf on the shore |
 | `scripts/sea_life.gd` | Dolphins and flying fish |
 | `scripts/deckhands.gd` | Hands who walk the deck |
+| `scripts/seaman_body.gd`, `models/` | A modelled, rigged seaman with a recorded walk, used for those hands |
 | `scripts/tutorial.gd` | The lessons |
 | `scripts/weather.gd` | Fair weather, squalls and mist; drives the wind and visibility |
 | `scripts/ship.gd` | Ship movement from wind, sail and rudder |

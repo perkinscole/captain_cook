@@ -6,6 +6,9 @@ render_mode cull_disabled;
 #include "res://shaders/paint.gdshaderinc"
 
 uniform vec3 tint : source_color = vec3(1.0);
+// A picture wrapped round the model, for models that come with one.
+uniform sampler2D picture : source_color, filter_linear_mipmap, repeat_enable;
+uniform bool has_picture = false;
 uniform float stroke = 0.3;                              // length of a stroke up close
 uniform float variation : hint_range(0.0, 0.5) = 0.17;   // how much each stroke's colour differs
 uniform float relief : hint_range(0.0, 2.0) = 1.25;      // how thick the paint stands
@@ -31,6 +34,9 @@ void fragment() {
 	float screen_px = 70.0 * VIEWPORT_SIZE.y / 720.0;
 	vec4 paint = paint_on(object_pos, normalize(object_normal), stroke, screen_px);
 	vec3 base = tint * COLOR.rgb;
+	if (has_picture) {
+		base *= texture(picture, UV).rgb;
+	}
 	base *= 1.0 - shade_below * (1.0 - smoothstep(-0.7, 0.6, normalize(object_normal).y));
 	ALBEDO = paint_colour(base, paint, variation, object_pos, ground);
 	NORMAL = paint_relief(normalize(NORMAL), VERTEX, paint, relief);

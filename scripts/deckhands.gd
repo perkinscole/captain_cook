@@ -34,7 +34,9 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	for hand in _hands:
-		var figure: Figure = hand["figure"]
+		# Either a code-built Figure or a modelled SeamanBody: both answer to
+		# `walking`, `facing` and `set_pose`.
+		var figure = hand["figure"]
 		var beat: Array = hand["beat"]
 		if float(hand["wait"]) > 0.0:
 			hand["wait"] = float(hand["wait"]) - delta
@@ -43,7 +45,8 @@ func _process(delta: float) -> void:
 				figure.set_pose("at_ease", 0.5)
 			continue
 		var target: Vector3 = beat[hand["next"]]
-		var to := target - figure.position
+		var here: Vector3 = figure.position
+		var to := target - here
 		if to.length() < 0.08:
 			# Arrived. Stop a while and do something.
 			figure.walking = false
@@ -55,7 +58,7 @@ func _process(delta: float) -> void:
 				figure.set_pose(doing, 0.8)
 				if doing == "lean":
 					# Lean on the nearest rail, looking out.
-					figure.facing = -signf(figure.position.x) * PI * 0.5
+					figure.facing = -signf(here.x) * PI * 0.5
 			continue
 		figure.walking = true
 		var step := to.normalized() * minf(PACE * delta, to.length())
@@ -64,6 +67,20 @@ func _process(delta: float) -> void:
 
 
 func _add(beat: Array[Vector3], start: int, jacket: Color, marine: bool) -> void:
+	# The hands are the modelled seaman where his model is there to use. The
+	# marine, and everyone if it is not, are built in code.
+	if not marine and SeamanBody.available():
+		var seaman := SeamanBody.new()
+		seaman.pace = PACE
+		# The same man three times over would look it; wash each a little differently.
+		seaman.tint = [Color(1.0, 1.0, 1.0), Color(0.9, 0.86, 0.8), Color(0.82, 0.9, 0.95)][start % 3]
+		seaman.position = beat[start]
+		add_child(seaman)
+		_hands.append({
+			"figure": seaman, "beat": beat, "next": (start + 1) % beat.size(),
+			"wait": randf_range(0.0, 3.0), "marine": false,
+		})
+		return
 	var figure := Figure.new()
 	figure.coat_color = jacket
 	figure.legs_color = Color(0.86, 0.83, 0.74) if marine else Color(0.80, 0.76, 0.66)

@@ -44,6 +44,19 @@ static func skin(colour: Color) -> ShaderMaterial:
 	return mat
 
 
+## A model that brings its own picture (texture): the picture gives the
+## colours, and the brush strokes are laid lightly over it. The strokes are
+## kept faint because on a body that bends they cannot follow the cloth.
+static func textured(picture: Texture2D, wash: Color = Color(1.0, 1.0, 1.0)) -> ShaderMaterial:
+	var mat := material(wash, 0.12, 0.75)
+	mat.set_shader_parameter("picture", picture)
+	mat.set_shader_parameter("has_picture", true)
+	mat.set_shader_parameter("variation", 0.05)
+	mat.set_shader_parameter("relief", 0.35)
+	mat.set_shader_parameter("ground", 0.0)
+	return mat
+
+
 ## Cloth: softer and less broken than wood or rock.
 static func cloth(colour: Color) -> ShaderMaterial:
 	var mat := material(colour, 0.12, 0.75)
