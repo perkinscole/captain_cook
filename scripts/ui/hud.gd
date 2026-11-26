@@ -5,8 +5,9 @@ extends Control
 ## prompt, what the hands call back, and the help sheet.
 ## It only reads from the game's systems; it never changes them.
 
-const HELP := """A / D        order the course a point to port / starboard
-W / S        make sail / shorten sail
+const HELP := """W A S D        walk the deck  (Shift to hurry)
+Left / Right        order the course a point to port / starboard
+Up / Down        make sail / shorten sail
 Space        heave the lead, and Space again to let go (under 9 knots)
 Q               raise or lower the spyglass (or hold the right mouse button)
 F               take a bearing on the landmark in the spyglass

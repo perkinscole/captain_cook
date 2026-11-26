@@ -1,24 +1,22 @@
 class_name ShipVisual
 extends Node3D
-## The ship you can see, built in code: a rounded hull, a planked deck,
-## three masts with yards, bellied sails and rigging. Child of a Ship.
-## It shows how much canvas is set, braces the yards to the wind, fills the
-## sails the right way (or the wrong way when she is taken aback), and
-## flies a pennant that streams downwind.
+## The ship you can see and walk about, built in code from ShipLayout.
 ##
-## Endeavour was a Whitby collier: bluff-bowed, flat-bottomed and broad.
-## This is a stand-in with that general shape, not a model of her.
+## She is modelled on HM Bark Endeavour, a Whitby collier: bluff bows, a
+## flat floor, a square stern with windows, a raised forecastle and
+## quarterdeck with the great cabin beneath it, three masts, boats stowed
+## over the waist and a handful of guns. It is a likeness built from simple
+## shapes, not a measured model, and the proportions are stretched a little
+## so that there is room to walk.
+##
+## It also shows the state of the ship: how much canvas is set, how the
+## yards are braced, which way the sails fill, and where the wind is.
 
 const DECK_SHADER := preload("res://shaders/deck.gdshader")
 
-const LENGTH := 31.0
-const BOW_Z := -16.0
-const HALF_BEAM := 4.0
-const DECK_Y := 3.15
-const RAIL_Y := 4.2
-const KEEL_Y := -1.6
-const STATIONS := 28
-const SECTION_POINTS := 11
+const DECK_Y := ShipLayout.WAIST_Y   # the masts are measured from the waist
+const STATIONS := 44
+const SECTION_POINTS := 13
 
 const MAST_Z: Array[float] = [-9.0, 0.0, 8.0]        # fore, main, mizzen
 const MAST_HEIGHT: Array[float] = [26.0, 30.0, 22.0]
@@ -39,27 +37,58 @@ var _sail_tier: Array[int] = []
 var _fore_and_aft: Array[MeshInstance3D] = []
 var _driver: Node3D
 var _pennant: Node3D
+var _ensign: Node3D
+var _wheel: Node3D
 var _time: float = 0.0
 var _fill: float = 1.0
+var _rig: SurfaceTool
 
 var _wood: StandardMaterial3D
 var _dark: StandardMaterial3D
+var _ochre: StandardMaterial3D
+var _red: StandardMaterial3D
+var _cream: StandardMaterial3D
+var _iron: StandardMaterial3D
+var _brass: StandardMaterial3D
 var _rope: StandardMaterial3D
 var _canvas: StandardMaterial3D
+var _planks: ShaderMaterial
 
 
 func _ready() -> void:
-	_wood = _material(Color(0.36, 0.25, 0.15))
-	_dark = _material(Color(0.13, 0.10, 0.08))
-	_rope = _material(Color(0.20, 0.16, 0.11))
+	_wood = _material(Color(0.38, 0.26, 0.15))
+	_dark = _material(Color(0.12, 0.09, 0.07))
+	_ochre = _material(Color(0.66, 0.50, 0.22))
+	_red = _material(Color(0.48, 0.14, 0.10))
+	_cream = _material(Color(0.80, 0.76, 0.62))
+	_iron = _material(Color(0.07, 0.07, 0.08))
+	_iron.roughness = 0.6
+	_brass = _material(Color(0.75, 0.58, 0.22))
+	_brass.metallic = 0.7
+	_brass.roughness = 0.4
+	_rope = _material(Color(0.17, 0.13, 0.09))
 	_canvas = _material(Color(1.0, 1.0, 1.0))
 	_canvas.vertex_color_use_as_albedo = true
+	_planks = ShaderMaterial.new()
+	_planks.shader = DECK_SHADER
 
+	_rig = SurfaceTool.new()
+	_rig.begin(Mesh.PRIMITIVE_TRIANGLES)
 	_build_hull()
-	_build_deck_fittings()
+	_build_decks()
+	_build_stern()
+	_build_ladders_and_rails()
+	_build_quarterdeck()
+	_build_waist()
+	_build_forecastle()
+	_build_great_cabin()
 	for m in MAST_Z.size():
 		_build_mast(m)
 	_build_head_rig()
+	_build_flags()
+	_rig.generate_normals()
+	var rigging := _add(self, _rig.commit(), Vector3.ZERO, _rope)
+	rigging.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 func _process(delta: float) -> void:
@@ -97,205 +126,475 @@ func _process(delta: float) -> void:
 	_driver.rotation.y = lerp_angle(_driver.rotation.y, deg_to_rad(-signf(rel) * 18.0), 0.05)
 	_pennant.rotation.y = -deg_to_rad(rel) + 0.12 * sin(_time * 6.0)
 	_pennant.rotation.x = 0.06 * sin(_time * 9.0)
+	_ensign.rotation.y = -deg_to_rad(rel) + 0.2 * sin(_time * 4.0)
+	_wheel.rotation.z = lerp_angle(_wheel.rotation.z, -ship.rudder * 2.5, 0.1)
 
 
-## Half the width of the hull at a point along it (0 = bow, 1 = stern).
-func _half_breadth(u: float) -> float:
-	var bow := pow(clampf(u / 0.16, 0.0, 1.0), 0.45)
-	var stern := 1.0 - 0.22 * pow(clampf((u - 0.78) / 0.22, 0.0, 1.0), 2.0)
-	return HALF_BEAM * bow * stern
-
+# --- hull and decks --------------------------------------------------------
 
 func _build_hull() -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	# Outer skin: a row of cross-sections from bow to stern, joined up.
 	for i in STATIONS:
-		var u := float(i) / (STATIONS - 1)
-		var z := BOW_Z + u * LENGTH
-		var b := _half_breadth(u)
+		var z := ShipLayout.BOW_Z + ShipLayout.LENGTH * i / (STATIONS - 1)
+		var b := ShipLayout.half_breadth(z)
+		var top := ShipLayout.rail_y(z)
 		for j in SECTION_POINTS:
 			var a := PI * j / (SECTION_POINTS - 1)
 			var c := cos(a)
-			var x := -b * signf(c) * pow(absf(c), 0.6)
-			var y := RAIL_Y - (RAIL_Y - KEEL_Y) * pow(sin(a), 0.7)
-			st.set_color(_hull_color(y))
+			var x := -b * signf(c) * pow(absf(c), 0.5)   # wall-sided and flat-floored
+			var y := top - (top - ShipLayout.KEEL_Y) * pow(sin(a), 0.75)
+			st.set_color(_hull_color(y, top))
 			st.add_vertex(Vector3(x, y, z))
 	for i in STATIONS - 1:
 		for j in SECTION_POINTS - 1:
 			var p := i * SECTION_POINTS + j
 			_quad(st, p, p + SECTION_POINTS, p + SECTION_POINTS + 1, p + 1)
-	# The flat stern.
-	var last := (STATIONS - 1) * SECTION_POINTS
-	var hub := STATIONS * SECTION_POINTS
-	st.set_color(_hull_color(2.0))
-	st.add_vertex(Vector3(0.0, 2.0, BOW_Z + LENGTH))
-	for j in SECTION_POINTS - 1:
-		st.add_index(hub)
-		st.add_index(last + j)
-		st.add_index(last + j + 1)
 	st.generate_normals()
 	var skin := _material(Color(1.0, 1.0, 1.0))
 	skin.vertex_color_use_as_albedo = true
 	_add(self, st.commit(), Vector3.ZERO, skin)
 
-	# Inside of the bulwarks and the rail on top of them.
+	# Inside of the bulwarks (painted red, as was the custom) and the rail
+	# on top of them. Aft, the same wall runs down to line the great cabin.
 	var inner := SurfaceTool.new()
 	inner.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var cap := SurfaceTool.new()
+	cap.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var lining := SurfaceTool.new()
+	lining.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in STATIONS:
-		var u := float(i) / (STATIONS - 1)
-		var z := BOW_Z + u * LENGTH
-		var b := _half_breadth(u)
+		var z := ShipLayout.BOW_Z + ShipLayout.LENGTH * i / (STATIONS - 1)
+		var b := ShipLayout.half_breadth(z)
 		var b_in := maxf(b - 0.22, 0.0)
+		var top := ShipLayout.rail_y(z)
 		for side: float in [-1.0, 1.0]:
-			inner.add_vertex(Vector3(side * b_in, DECK_Y, z))
-			inner.add_vertex(Vector3(side * b_in, RAIL_Y, z))
-			inner.add_vertex(Vector3(side * b, RAIL_Y, z))
+			inner.add_vertex(Vector3(side * b_in, ShipLayout.deck_top(z), z))
+			inner.add_vertex(Vector3(side * b_in, top, z))
+			cap.add_vertex(Vector3(side * b_in, top, z))
+			cap.add_vertex(Vector3(side * (b + 0.06), top, z))
+			lining.add_vertex(Vector3(side * b_in, ShipLayout.WAIST_Y, z))
+			lining.add_vertex(Vector3(side * b_in, ShipLayout.QUARTERDECK_Y, z))
 	for i in STATIONS - 1:
 		for side in 2:
-			var p := i * 6 + side * 3
-			_quad(inner, p, p + 6, p + 7, p + 1)
-			_quad(inner, p + 1, p + 7, p + 8, p + 2)
+			var p := i * 4 + side * 2
+			_quad(inner, p, p + 4, p + 5, p + 1)
+			_quad(cap, p, p + 4, p + 5, p + 1)
+			# Only the stretch under the quarterdeck is lined: the great cabin.
+			var z_here := ShipLayout.BOW_Z + ShipLayout.LENGTH * i / (STATIONS - 1)
+			if z_here >= ShipLayout.QUARTERDECK_BREAK_Z - 0.4:
+				_quad(lining, p, p + 4, p + 5, p + 1)
 	inner.generate_normals()
-	_add(self, inner.commit(), Vector3.ZERO, _wood)
+	cap.generate_normals()
+	_add(self, inner.commit(), Vector3.ZERO, _red)
+	_add(self, cap.commit(), Vector3.ZERO, _dark)
+	lining.generate_normals()
+	_add(self, lining.commit(), Vector3.ZERO, _cream)
 
-	# The deck, planked by a shader.
-	var deck := SurfaceTool.new()
-	deck.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for i in STATIONS:
-		var u := float(i) / (STATIONS - 1)
-		var z := BOW_Z + u * LENGTH
-		var b_in := maxf(_half_breadth(u) - 0.22, 0.0)
-		deck.add_vertex(Vector3(-b_in, DECK_Y, z))
-		deck.add_vertex(Vector3(b_in, DECK_Y, z))
-	for i in STATIONS - 1:
+
+func _hull_color(y: float, top: float) -> Color:
+	if y > top - 0.9:
+		return Color(0.64, 0.47, 0.20)   # ochre upper works
+	if y > 2.3 and y < 2.95:
+		return Color(0.07, 0.06, 0.05)   # the black wale
+	if y > 0.25:
+		return Color(0.36, 0.24, 0.13)   # oiled sides
+	return Color(0.76, 0.73, 0.64)       # pale bottom, payed against worm
+
+
+func _build_decks() -> void:
+	# The main deck runs her whole length: the waist in the open, and aft of
+	# it the floor of the great cabin. The forecastle and quarterdeck sit above.
+	_deck(ShipLayout.BOW_Z + 0.6, ShipLayout.STERN_Z, ShipLayout.WAIST_Y)
+	_deck(ShipLayout.BOW_Z + 0.6, ShipLayout.FORECASTLE_BREAK_Z, ShipLayout.FORECASTLE_Y)
+	_deck(ShipLayout.QUARTERDECK_BREAK_Z, ShipLayout.STERN_Z, ShipLayout.QUARTERDECK_Y)
+
+	# The wall under the after end of the forecastle.
+	var fb := ShipLayout.half_breadth(ShipLayout.FORECASTLE_BREAK_Z) - 0.22
+	var f_mid := (ShipLayout.WAIST_Y + ShipLayout.FORECASTLE_Y) * 0.5
+	_box(self, Vector3(fb * 2.0, ShipLayout.FORECASTLE_Y - ShipLayout.WAIST_Y, 0.12),
+			Vector3(0.0, f_mid, ShipLayout.FORECASTLE_BREAK_Z), _ochre)
+
+	# The bulkhead under the front of the quarterdeck, with the cabin door.
+	var qb := ShipLayout.half_breadth(ShipLayout.QUARTERDECK_BREAK_Z) - 0.22
+	var rise := ShipLayout.QUARTERDECK_Y - ShipLayout.WAIST_Y
+	var q_mid := ShipLayout.WAIST_Y + rise * 0.5
+	var door := ShipLayout.DOOR_HALF_WIDTH
+	var panel := qb - door
+	for side: float in [-1.0, 1.0]:
+		_box(self, Vector3(panel, rise, 0.12),
+				Vector3(side * (door + panel * 0.5), q_mid, ShipLayout.QUARTERDECK_BREAK_Z), _ochre)
+		_box(self, Vector3(0.1, ShipLayout.DOOR_HEIGHT, 0.16), Vector3(side * door,
+				ShipLayout.WAIST_Y + ShipLayout.DOOR_HEIGHT * 0.5, ShipLayout.QUARTERDECK_BREAK_Z), _dark)
+	var lintel := rise - ShipLayout.DOOR_HEIGHT
+	_box(self, Vector3(door * 2.0, lintel, 0.12), Vector3(0.0,
+			ShipLayout.QUARTERDECK_Y - lintel * 0.5, ShipLayout.QUARTERDECK_BREAK_Z), _ochre)
+
+
+## One stretch of planked deck, from side to side of the hull.
+func _deck(from_z: float, to_z: float, y: float) -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var steps := 16
+	for i in steps + 1:
+		var z := lerpf(from_z, to_z, float(i) / steps)
+		var b_in := maxf(ShipLayout.half_breadth(z) - 0.22, 0.0)
+		st.add_vertex(Vector3(-b_in, y, z))
+		st.add_vertex(Vector3(b_in, y, z))
+	for i in steps:
 		var p := i * 2
-		_quad(deck, p, p + 2, p + 3, p + 1)
-	deck.generate_normals()
-	var planks := ShaderMaterial.new()
-	planks.shader = DECK_SHADER
-	var deck_inst := _add(self, deck.commit(), Vector3.ZERO, planks)
-	deck_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_quad(st, p, p + 1, p + 3, p + 2)
+	st.generate_normals()
+	_add(self, st.commit(), Vector3.ZERO, _planks)
 
 
-func _hull_color(y: float) -> Color:
-	if y > 3.3:
-		return Color(0.60, 0.43, 0.20)   # varnished upper works
-	if y > 2.6:
-		return Color(0.10, 0.08, 0.07)   # the black wale
-	if y > 0.3:
-		return Color(0.30, 0.21, 0.13)   # tarred sides
-	return Color(0.72, 0.69, 0.60)       # pale bottom, payed against worm
+func _build_stern() -> void:
+	var z := ShipLayout.STERN_Z
+	var b := ShipLayout.half_breadth(z)
+	var top := ShipLayout.rail_y(z)
+	var sill := ShipLayout.WAIST_Y + 0.75    # bottom of the cabin windows
+	var head := ShipLayout.WAIST_Y + 1.7     # top of them
 
-
-func _build_deck_fittings() -> void:
-	var brass := _material(Color(0.75, 0.58, 0.22))
-	brass.metallic = 0.7
-	brass.roughness = 0.4
-
-	# The wheel, just aft of where you stand, and the binnacle before it.
-	_box(self, Vector3(0.16, 1.05, 0.34), Vector3(0.0, DECK_Y + 0.52, 12.95), _wood)
-	var rim := TorusMesh.new()
-	rim.inner_radius = 0.44
-	rim.outer_radius = 0.52
-	var wheel := _add(self, rim, Vector3(0.0, DECK_Y + 1.1, 12.72), _wood)
-	wheel.rotation.x = PI * 0.5
-	for k in 4:
-		var spoke := _box(self, Vector3(1.3, 0.05, 0.05), Vector3(0.0, DECK_Y + 1.1, 12.72), _wood)
-		spoke.rotation.z = PI * k / 4.0
-	_box(self, Vector3(0.55, 0.95, 0.45), Vector3(0.0, DECK_Y + 0.47, 12.2), _wood)
-	_box(self, Vector3(0.3, 0.06, 0.3), Vector3(0.0, DECK_Y + 0.97, 12.2), brass)
-
-	# Hatches with gratings, the capstan, and the bell forward.
-	_box(self, Vector3(2.4, 0.26, 3.2), Vector3(0.0, DECK_Y + 0.13, -4.8), _dark)
-	_box(self, Vector3(1.8, 0.26, 2.0), Vector3(0.0, DECK_Y + 0.13, 4.9), _dark)
-	_cylinder(self, 0.42, 0.55, 1.0, Vector3(0.0, DECK_Y + 0.5, 2.2), _wood)
-	_cylinder(self, 0.72, 0.72, 0.2, Vector3(0.0, DECK_Y + 1.1, 2.2), _wood)
-	_box(self, Vector3(0.14, 1.5, 0.14), Vector3(-0.5, DECK_Y + 0.75, -12.0), _wood)
-	_box(self, Vector3(0.14, 1.5, 0.14), Vector3(0.5, DECK_Y + 0.75, -12.0), _wood)
-	_box(self, Vector3(1.3, 0.14, 0.2), Vector3(0.0, DECK_Y + 1.55, -12.0), _wood)
-	_cylinder(self, 0.1, 0.2, 0.3, Vector3(0.0, DECK_Y + 1.3, -12.0), brass)
-
-	# The stern lantern. It glows when the weather darkens.
-	_box(self, Vector3(0.1, 1.2, 0.1), Vector3(0.0, RAIL_Y + 0.6, 14.8), _dark)
+	# Below the windows the stern is planked across.
+	_box(self, Vector3(b * 2.0, sill - 1.8, 0.14), Vector3(0.0, (sill + 1.8) * 0.5, z), _wood)
+	_box(self, Vector3(b * 1.75, 2.0, 0.14), Vector3(0.0, 0.8, z), _wood)
+	_box(self, Vector3(b * 1.25, 1.6, 0.14), Vector3(0.0, -0.9, z), _wood)
+	# The row of five windows of the great cabin, and the upper stern above.
+	_box(self, Vector3(b * 2.0 + 0.2, 0.14, 0.24), Vector3(0.0, sill, z), _ochre)
+	_box(self, Vector3(b * 2.0 + 0.2, 0.14, 0.24), Vector3(0.0, head, z), _ochre)
+	for k in 6:
+		var x := lerpf(-b + 0.1, b - 0.1, k / 5.0)
+		_box(self, Vector3(0.14, head - sill, 0.2), Vector3(x, (sill + head) * 0.5, z), _ochre)
+	for k in 5:
+		var x := lerpf(-b + 0.1, b - 0.1, (k + 0.5) / 5.0)
+		_box(self, Vector3(0.04, head - sill, 0.06), Vector3(x, (sill + head) * 0.5, z), _ochre)
+		_box(self, Vector3(b * 0.4, 0.04, 0.06), Vector3(x, (sill + head) * 0.5, z), _ochre)
+	_box(self, Vector3(b * 2.0, top - head, 0.14), Vector3(0.0, (top + head) * 0.5, z), _ochre)
+	_box(self, Vector3(b * 2.0 + 0.3, 0.12, 0.3), Vector3(0.0, top, z), _dark)   # taffrail
+	# The rudder head, and the great lantern on the taffrail.
+	_box(self, Vector3(0.3, 4.6, 0.9), Vector3(0.0, 0.2, z + 0.5), _wood)
+	_box(self, Vector3(0.1, 1.1, 0.1), Vector3(0.0, top + 0.55, z), _iron)
 	var glass := StandardMaterial3D.new()
 	glass.albedo_color = Color(1.0, 0.75, 0.35)
 	glass.emission_enabled = true
 	glass.emission = Color(1.0, 0.62, 0.25)
 	glass.emission_energy_multiplier = 2.5
-	_box(self, Vector3(0.34, 0.45, 0.34), Vector3(0.0, RAIL_Y + 1.4, 14.8), glass)
+	_cylinder(self, 0.16, 0.22, 0.5, Vector3(0.0, top + 1.3, z), glass, 6)
+	_cylinder(self, 0.02, 0.2, 0.2, Vector3(0.0, top + 1.65, z), _iron, 6)
 	var glow := OmniLight3D.new()
 	glow.light_color = Color(1.0, 0.68, 0.35)
 	glow.light_energy = 1.4
 	glow.omni_range = 11.0
-	glow.position = Vector3(0.0, RAIL_Y + 1.4, 14.4)
+	glow.position = Vector3(0.0, top + 1.3, z - 0.4)
 	add_child(glow)
 
+
+func _build_ladders_and_rails() -> void:
+	var qz := ShipLayout.QUARTERDECK_BREAK_Z
+	var fz := ShipLayout.FORECASTLE_BREAK_Z
+	for side: float in [-1.0, 1.0]:
+		_ladder(side * ShipLayout.QUARTERDECK_LADDER_X,
+				ShipLayout.QUARTERDECK_LADDER_FOOT_Z, qz,
+				ShipLayout.WAIST_Y, ShipLayout.QUARTERDECK_Y)
+		_ladder(side * ShipLayout.FORECASTLE_LADDER_X,
+				ShipLayout.FORECASTLE_LADDER_FOOT_Z, fz,
+				ShipLayout.WAIST_Y, ShipLayout.FORECASTLE_Y)
+	# Rails along the edge of each raised deck, with gaps at the ladder heads.
+	var q_gap := ShipLayout.QUARTERDECK_LADDER_X
+	var qb := ShipLayout.half_breadth(qz) - 0.3
+	_breast_rail(-q_gap + 0.6, q_gap - 0.6, ShipLayout.QUARTERDECK_Y, qz + 0.08)
+	_breast_rail(q_gap + 0.6, qb, ShipLayout.QUARTERDECK_Y, qz + 0.08)
+	_breast_rail(-qb, -q_gap - 0.6, ShipLayout.QUARTERDECK_Y, qz + 0.08)
+	var f_gap := ShipLayout.FORECASTLE_LADDER_X
+	var fb := ShipLayout.half_breadth(fz) - 0.3
+	_breast_rail(-f_gap + 0.6, f_gap - 0.6, ShipLayout.FORECASTLE_Y, fz - 0.08)
+	_breast_rail(f_gap + 0.6, fb, ShipLayout.FORECASTLE_Y, fz - 0.08)
+	_breast_rail(-fb, -f_gap - 0.6, ShipLayout.FORECASTLE_Y, fz - 0.08)
+
+
+## A ladder of treads between two side pieces, from foot to head.
+func _ladder(x: float, foot_z: float, head_z: float, foot_y: float, head_y: float) -> void:
+	var treads := 7
+	for k in treads:
+		var t := (k + 1.0) / (treads + 1.0)
+		_box(self, Vector3(0.95, 0.05, 0.24),
+				Vector3(x, lerpf(foot_y, head_y, t), lerpf(foot_z, head_z, t)), _wood)
+	for edge: float in [-1.0, 1.0]:
+		_line(Vector3(x + edge * 0.5, foot_y, foot_z), Vector3(x + edge * 0.5, head_y, head_z),
+				0.05, _wood)
+		# A hand rope either side.
+		_rope_between(Vector3(x + edge * 0.5, foot_y + 0.95, foot_z),
+				Vector3(x + edge * 0.5, head_y + 0.95, head_z), 0.02)
+
+
+## A waist-high rail on posts across the ship, from x = from to x = to.
+func _breast_rail(from: float, to: float, deck_y: float, z: float) -> void:
+	if to - from < 0.3:
+		return
+	_box(self, Vector3(to - from, 0.08, 0.1), Vector3((from + to) * 0.5, deck_y + 1.0, z), _dark)
+	var posts := maxi(2, int((to - from) / 0.9) + 1)
+	for k in posts:
+		var x := lerpf(from, to, float(k) / (posts - 1))
+		_box(self, Vector3(0.07, 1.0, 0.07), Vector3(x, deck_y + 0.5, z), _wood)
+
+
+# --- the three decks --------------------------------------------------------
+
+func _build_quarterdeck() -> void:
+	var y := ShipLayout.QUARTERDECK_Y
+	# The wheel, which turns with the rudder, and the binnacle before it.
+	_box(self, Vector3(0.16, 1.05, 0.34), Vector3(0.0, y + 0.52, 12.95), _wood)
+	_wheel = Node3D.new()
+	_wheel.position = Vector3(0.0, y + 1.1, 12.72)
+	add_child(_wheel)
+	var rim := TorusMesh.new()
+	rim.inner_radius = 0.44
+	rim.outer_radius = 0.52
+	var hoop := _add(_wheel, rim, Vector3.ZERO, _wood)
+	hoop.rotation.x = PI * 0.5
+	for k in 4:
+		var spoke := _box(_wheel, Vector3(1.3, 0.05, 0.05), Vector3.ZERO, _wood)
+		spoke.rotation.z = PI * k / 4.0
+	_box(self, Vector3(0.55, 0.95, 0.45), Vector3(0.0, y + 0.47, 12.2), _wood)
+	_box(self, Vector3(0.3, 0.06, 0.3), Vector3(0.0, y + 0.97, 12.2), _brass)
+	# The capstan, with its bars shipped.
+	_cylinder(self, 0.42, 0.55, 1.0, Vector3(0.0, y + 0.5, 6.0), _wood, 10)
+	_cylinder(self, 0.7, 0.7, 0.22, Vector3(0.0, y + 1.1, 6.0), _wood, 10)
+	for k in 4:
+		var bar := _box(self, Vector3(3.2, 0.07, 0.07), Vector3(0.0, y + 1.1, 6.0), _wood)
+		bar.rotation.y = PI * k / 4.0 + 0.3
+	# Swivel guns on the rail, two a side.
+	for side: float in [-1.0, 1.0]:
+		for z: float in [9.6, 13.4]:
+			var at := Vector3(side * (ShipLayout.half_breadth(z) - 0.1), ShipLayout.rail_y(z), z)
+			_box(self, Vector3(0.06, 0.3, 0.06), at + Vector3(0.0, 0.15, 0.0), _iron)
+			var barrel := _cylinder(self, 0.04, 0.06, 0.8, at + Vector3(side * 0.2, 0.34, 0.0),
+					_iron, 6)
+			barrel.rotation.z = -side * PI * 0.5
+
+
+func _build_waist() -> void:
+	var y := ShipLayout.WAIST_Y
+	# Hatches with gratings, and the pumps abaft the mainmast.
+	_box(self, Vector3(2.4, 0.22, 3.2), Vector3(0.0, y + 0.11, -4.8), _wood)
+	_box(self, Vector3(2.1, 0.04, 2.9), Vector3(0.0, y + 0.23, -4.8), _dark)
+	for side: float in [-1.0, 1.0]:
+		_cylinder(self, 0.13, 0.15, 1.0, Vector3(side * 0.55, y + 0.5, 0.9), _wood, 8)
+		var handle := _box(self, Vector3(0.05, 0.05, 1.1), Vector3(side * 0.55, y + 1.05, 1.2), _iron)
+		handle.rotation.x = 0.35
+
+	# Four-pounder guns on their carriages, run in and lashed.
+	for side: float in [-1.0, 1.0]:
+		for z: float in [-5.3, -2.6]:
+			var at := Vector3(side * 3.2, y, z)
+			_box(self, Vector3(1.0, 0.3, 0.6), at + Vector3(0.0, 0.32, 0.0), _red)
+			var barrel := _cylinder(self, 0.09, 0.15, 1.6, at + Vector3(side * 0.15, 0.6, 0.0),
+					_iron, 8)
+			barrel.rotation.z = -side * PI * 0.5
+			for wheel_x: float in [-0.32, 0.32]:
+				for wheel_z: float in [-0.33, 0.33]:
+					var truck := _cylinder(self, 0.16, 0.16, 0.08,
+							at + Vector3(wheel_x, 0.16, wheel_z), _wood, 8)
+					truck.rotation.x = PI * 0.5
+
+	# The boats, stowed side by side on beams over the waist. You walk under them.
+	var beam_y := y + 2.25
+	for z: float in [-6.0, -1.4]:
+		_box(self, Vector3(7.0, 0.18, 0.2), Vector3(0.0, beam_y, z), _wood)
+		for side: float in [-1.0, 1.0]:
+			_box(self, Vector3(0.16, 2.25, 0.16), Vector3(side * 3.4, y + 1.12, z), _wood)
+	_boat(Vector3(-1.25, beam_y + 0.1, -3.7), 6.4, 1.9)   # the longboat
+	_boat(Vector3(1.3, beam_y + 0.1, -3.7), 5.6, 1.7)     # the pinnace
+
+
+func _build_forecastle() -> void:
+	var y := ShipLayout.FORECASTLE_Y
+	# The windlass, for weighing the anchors, between its two bitts.
+	var barrel := _cylinder(self, 0.3, 0.3, 2.6, Vector3(0.0, y + 0.55, -11.6), _wood, 8)
+	barrel.rotation.z = PI * 0.5
+	for side: float in [-1.0, 1.0]:
+		_box(self, Vector3(0.24, 1.1, 0.5), Vector3(side * 1.4, y + 0.55, -11.6), _wood)
+	# The belfry and the ship's bell, and the galley chimney.
+	for side: float in [-1.0, 1.0]:
+		_box(self, Vector3(0.12, 1.5, 0.12), Vector3(side * 0.45, y + 0.75, -7.95), _wood)
+	_box(self, Vector3(1.2, 0.14, 0.2), Vector3(0.0, y + 1.55, -7.95), _wood)
+	_cylinder(self, 0.09, 0.2, 0.3, Vector3(0.0, y + 1.3, -7.95), _brass, 10)
+	_cylinder(self, 0.14, 0.14, 0.9, Vector3(1.5, y + 0.45, -10.2), _iron, 8)
+
+	# Catheads, and an anchor hung from each.
+	for side: float in [-1.0, 1.0]:
+		var b := ShipLayout.half_breadth(-12.6)
+		var cat := _box(self, Vector3(1.5, 0.24, 0.24),
+				Vector3(side * (b + 0.4), ShipLayout.rail_y(-12.6) + 0.05, -12.6), _wood)
+		cat.rotation.y = -side * 0.5
+		_anchor(Vector3(side * (b + 0.45), ShipLayout.rail_y(-11.0) - 1.3, -11.0), side)
+
+
+func _build_great_cabin() -> void:
+	var y := ShipLayout.WAIST_Y
+	var paper := _material(Color(0.91, 0.85, 0.70))
+	# The table where the charts are drawn, a chart on it, and a bench under
+	# the stern windows.
+	_box(self, Vector3(1.8, 0.07, 1.1), Vector3(0.0, y + 0.8, 11.6), _wood)
+	for corner_x: float in [-0.8, 0.8]:
+		for corner_z: float in [-0.45, 0.45]:
+			_box(self, Vector3(0.08, 0.8, 0.08), Vector3(corner_x, y + 0.4, 11.6 + corner_z), _wood)
+	_box(self, Vector3(1.0, 0.012, 0.75), Vector3(-0.1, y + 0.845, 11.6), paper)
+	_box(self, Vector3(0.3, 0.05, 0.05), Vector3(0.6, y + 0.86, 11.3), _brass)   # dividers
+	var b := ShipLayout.half_breadth(14.3)
+	_box(self, Vector3(b * 1.7, 0.45, 0.55), Vector3(0.0, y + 0.22, 14.45), _wood)
+	_box(self, Vector3(b * 1.7, 0.08, 0.6), Vector3(0.0, y + 0.48, 14.45), _red)
+	# The captain's desk and chair.
+	_box(self, Vector3(1.0, 0.07, 0.7), Vector3(-2.4, y + 0.8, 6.0), _wood)
+	_box(self, Vector3(0.95, 0.75, 0.65), Vector3(-2.4, y + 0.4, 6.0), _wood)
+	_box(self, Vector3(0.5, 0.012, 0.35), Vector3(-2.4, y + 0.845, 6.0), paper)
+	_box(self, Vector3(0.45, 0.45, 0.45), Vector3(-1.5, y + 0.22, 6.2), _wood)
+	_box(self, Vector3(0.45, 0.6, 0.06), Vector3(-1.5, y + 0.7, 6.42), _wood)
+	# Beams under the quarterdeck.
+	for z: float in [5.5, 7.0, 8.5, 10.0, 11.5, 13.0]:
+		var half := ShipLayout.half_breadth(z) - 0.25
+		_box(self, Vector3(half * 2.0, 0.16, 0.14),
+				Vector3(0.0, ShipLayout.QUARTERDECK_Y - 0.1, z), _wood)
+	# A lantern slung over the chart table.
+	var glass := StandardMaterial3D.new()
+	glass.albedo_color = Color(1.0, 0.75, 0.35)
+	glass.emission_enabled = true
+	glass.emission = Color(1.0, 0.62, 0.25)
+	glass.emission_energy_multiplier = 3.0
+	_box(self, Vector3(0.18, 0.26, 0.18), Vector3(0.0, ShipLayout.QUARTERDECK_Y - 0.5, 11.2), glass)
+	_box(self, Vector3(0.02, 0.24, 0.02), Vector3(0.0, ShipLayout.QUARTERDECK_Y - 0.25, 11.2), _iron)
+	var lamp := OmniLight3D.new()
+	lamp.light_color = Color(1.0, 0.66, 0.34)
+	lamp.light_energy = 2.2
+	lamp.omni_range = 8.0
+	lamp.position = Vector3(0.0, ShipLayout.QUARTERDECK_Y - 0.55, 11.2)
+	add_child(lamp)
+
+
+# --- masts, sails and rigging ------------------------------------------------
 
 func _build_mast(m: int) -> void:
 	var z := MAST_Z[m]
 	var h := MAST_HEIGHT[m]
 	var size := h / 30.0
 	var top_y := DECK_Y + h * TOP_AT
+	var cross_y := DECK_Y + h * 0.78
 
-	_cylinder(self, 0.3, 0.4, h * 0.5, Vector3(0.0, DECK_Y + h * 0.25, z), _wood)
-	_cylinder(self, 1.25 * size, 1.25 * size, 0.14, Vector3(0.0, top_y, z), _wood)
-	_cylinder(self, 0.17, 0.25, h * 0.36, Vector3(0.0, DECK_Y + h * 0.62, z - 0.25), _wood)
-	_cylinder(self, 0.08, 0.15, h * 0.22, Vector3(0.0, DECK_Y + h * 0.89, z - 0.1), _wood)
-
-	# Shrouds: the ropes that hold the mast up from either side.
+	# Lower mast with iron bands, topmast, topgallant mast and truck.
+	_cylinder(self, 0.3, 0.4, h * 0.5, Vector3(0.0, DECK_Y + h * 0.25, z), _wood, 12)
+	for k in 5:
+		_cylinder(self, 0.36, 0.37, 0.07, Vector3(0.0, DECK_Y + 1.6 + k * h * 0.075, z), _dark, 12)
+	_cylinder(self, 0.17, 0.25, h * 0.36, Vector3(0.0, DECK_Y + h * 0.62, z - 0.25), _wood, 10)
+	_cylinder(self, 0.08, 0.15, h * 0.22, Vector3(0.0, DECK_Y + h * 0.89, z - 0.1), _wood, 8)
+	_cylinder(self, 0.14, 0.14, 0.06, Vector3(0.0, DECK_Y + h + 0.02, z - 0.1), _wood, 8)
+	# The top: a platform with a rail round its after side. The crosstrees above.
+	_box(self, Vector3(2.5 * size, 0.1, 2.0 * size), Vector3(0.0, top_y, z), _wood)
+	_box(self, Vector3(2.5 * size, 0.06, 0.06), Vector3(0.0, top_y + 0.9, z + 1.0 * size), _wood)
 	for side: float in [-1.0, 1.0]:
+		_box(self, Vector3(0.06, 0.9, 0.06),
+				Vector3(side * 1.2 * size, top_y + 0.45, z + 1.0 * size), _wood)
+	_box(self, Vector3(1.5 * size, 0.07, 0.1), Vector3(0.0, cross_y, z - 0.25), _wood)
+	_box(self, Vector3(0.1, 0.07, 1.1 * size), Vector3(0.0, cross_y, z - 0.25), _wood)
+
+	for side: float in [-1.0, 1.0]:
+		# The channel: a ledge outside the hull where the shrouds make fast.
+		var chain_z := z + 1.9
+		var b := ShipLayout.half_breadth(chain_z)
+		_box(self, Vector3(0.45, 0.08, 4.2),
+				Vector3(side * (b + 0.2), ShipLayout.rail_y(chain_z) - 0.25, chain_z), _dark)
+		# Lower shrouds, with ratlines to climb by.
+		var heads: Array[Vector3] = []
+		var feet: Array[Vector3] = []
+		for k in 5:
+			var foot_z := z + 0.3 + 0.8 * k
+			heads.append(Vector3(side * 0.5 * size, top_y - 0.1, z + 0.1 * k))
+			feet.append(Vector3(side * (ShipLayout.half_breadth(foot_z) + 0.35),
+					ShipLayout.rail_y(foot_z) - 0.2, foot_z))
+			_rope_between(heads[k], feet[k], 0.03)
+		var rungs := int((top_y - ShipLayout.rail_y(z)) / 0.42)
+		for r in range(1, rungs):
+			var t := float(r) / rungs
+			_rope_between(feet[0].lerp(heads[0], t), feet[4].lerp(heads[4], t), 0.012)
+		# Topmast shrouds, and a backstay from the crosstrees to the channel.
 		for k in 3:
-			var foot_z := z + 0.5 + 0.9 * k
-			var foot_u := (foot_z - BOW_Z) / LENGTH
-			_line(Vector3(side * 0.9 * size, top_y, z),
-					Vector3(side * (_half_breadth(foot_u) + 0.05), RAIL_Y, foot_z), 0.035)
-		_line(Vector3(side * 0.2, DECK_Y + h * 0.78, z - 0.25),
-				Vector3(side * 1.15 * size, top_y + 0.1, z + 0.2), 0.025)
-	# A stay running forward and down from the top.
-	var stay_foot := Vector3(0.0, DECK_Y + 1.0, z - 8.4) if m > 0 else Vector3(0.0, 5.0, -19.5)
-	_line(Vector3(0.0, top_y, z - 0.3), stay_foot, 0.04)
+			_rope_between(Vector3(side * 0.15, cross_y, z - 0.25),
+					Vector3(side * 1.15 * size, top_y + 0.1, z - 0.3 + 0.4 * k), 0.022)
+		_rope_between(Vector3(side * 0.2, cross_y, z - 0.2),
+				Vector3(side * (b + 0.35), ShipLayout.rail_y(chain_z) - 0.2, z + 3.8), 0.028)
+	# Stays running forward and down: from the top, and from the crosstrees.
+	var stay_foot := Vector3(0.0, ShipLayout.deck_top(z - 8.4) + 1.2, z - 8.4)
+	var top_stay_foot := Vector3(0.0, DECK_Y + MAST_HEIGHT[maxi(m - 1, 0)] * TOP_AT, z - 8.6)
+	if m == 0:
+		stay_foot = Vector3(0.0, 5.6, -20.5)
+		top_stay_foot = Vector3(0.0, 6.6, -25.4)
+	_rope_between(Vector3(0.0, top_y, z - 0.3), stay_foot, 0.045)
+	_rope_between(Vector3(0.0, cross_y, z - 0.3), top_stay_foot, 0.03)
 
 	var yards := Node3D.new()
 	yards.position = Vector3(0.0, DECK_Y, z)
 	add_child(yards)
 	_yards.append(yards)
+	var lifts := SurfaceTool.new()
+	lifts.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for t in YARD_AT.size():
-		if m == 2 and t == 1:
-			continue  # the mizzen carries no course, only a bare yard
 		var yard_y := h * YARD_AT[t]
-		var yard := _cylinder(yards, 0.09 * size, 0.09 * size, YARD_WIDTH[t] * size + 1.2,
-				Vector3(0.0, yard_y, -0.45), _wood)
+		var span := YARD_WIDTH[t] * size + 1.2
+		var yard := _cylinder(yards, 0.085 * size, 0.085 * size, span,
+				Vector3(0.0, yard_y, -0.45), _wood, 8)
 		yard.rotation.z = PI * 0.5
+		# Lifts hold the yard level from the mast above it.
+		for side: float in [-1.0, 1.0]:
+			_ribbon(lifts, Vector3(side * span * 0.48, yard_y, -0.45),
+					Vector3(0.0, yard_y + h * 0.1, -0.2), 0.018)
+		if m == 2 and t == 1:
+			continue  # the mizzen's lowest yard carries no sail
 		var sail := _add(yards, _square_sail(YARD_WIDTH[t] * size, FOOT_WIDTH[t] * size,
-				h * SAIL_DROP[t]), Vector3(0.0, yard_y - 0.1, -0.5), _canvas)
+				h * SAIL_DROP[t], t == 0), Vector3(0.0, yard_y - 0.1, -0.5), _canvas)
 		_sails.append(sail)
 		_sail_tier.append(t)
+	lifts.generate_normals()
+	var lift_mesh := _add(yards, lifts.commit(), Vector3.ZERO, _rope)
+	lift_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	if m == 2:
-		# The driver: a fore-and-aft sail set abaft the mizzen, over your head.
+		# The driver: a fore-and-aft sail set abaft the mizzen, over the wheel.
+		var foot := ShipLayout.QUARTERDECK_Y + 2.6
 		_driver = Node3D.new()
 		_driver.position = Vector3(0.0, 0.0, z + 0.4)
 		add_child(_driver)
 		var driver := _add(_driver, _flat_sail(PackedVector3Array([
-			Vector3(0.0, 6.7, 0.0), Vector3(0.0, 7.0, 6.2),
-			Vector3(0.0, 15.0, 4.6), Vector3(0.0, 12.8, 0.0),
+			Vector3(0.0, foot, 0.0), Vector3(0.0, foot + 0.3, 6.0),
+			Vector3(0.0, foot + 8.0, 4.4), Vector3(0.0, foot + 6.0, 0.0),
 		])), Vector3.ZERO, _canvas)
 		_fore_and_aft.append(driver)
-		_line(Vector3(0.0, 12.8, z + 0.4), Vector3(0.0, 15.2, z + 5.2), 0.07, _wood)
+		var gaff := _cylinder(_driver, 0.07, 0.07, 5.2, Vector3(0.0, foot + 7.05, 2.3), _wood, 6)
+		gaff.basis = Basis(Quaternion(Vector3.UP, Vector3(0.0, 2.0, 4.4).normalized()))
 
 
 func _build_head_rig() -> void:
-	# Bowsprit, a jib set on it, and the pennant at the main masthead.
-	_line(Vector3(0.0, 4.4, -15.0), Vector3(0.0, 6.4, -25.0), 0.24, _wood)
-	var fore_top := DECK_Y + MAST_HEIGHT[0] * 0.78
-	_line(Vector3(0.0, fore_top, MAST_Z[0] - 0.25), Vector3(0.0, 6.3, -24.6), 0.035)
-	var jib := _add(self, _flat_sail(PackedVector3Array([
-		Vector3(0.0, 6.0, -23.0), Vector3(0.0, fore_top - 2.5, -10.8),
-		Vector3(0.0, 5.6, -12.0), Vector3(0.0, 5.8, -17.5),
-	])), Vector3.ZERO, _canvas)
-	_fore_and_aft.append(jib)
+	# Bowsprit and jib-boom, the spritsail yard slung under them, and two
+	# headsails set on the stays.
+	_line(Vector3(0.0, 4.9, -15.2), Vector3(0.0, 6.4, -22.0), 0.26, _wood)
+	_line(Vector3(0.0, 6.2, -21.0), Vector3(0.0, 7.0, -26.0), 0.12, _wood)
+	var sprit := _cylinder(self, 0.08, 0.08, 9.0, Vector3(0.0, 5.3, -19.6), _wood, 6)
+	sprit.rotation.z = PI * 0.5
+	_rope_between(Vector3(0.0, 6.4, -22.0), Vector3(0.0, 2.6, -16.0), 0.04)   # bobstay
 
+	var fore_top := DECK_Y + MAST_HEIGHT[0] * TOP_AT
+	var fore_cross := DECK_Y + MAST_HEIGHT[0] * 0.78
+	_fore_and_aft.append(_add(self, _flat_sail(PackedVector3Array([
+		Vector3(0.0, 5.9, -20.0), Vector3(0.0, fore_top - 1.0, -10.6),
+		Vector3(0.0, 6.4, -11.6), Vector3(0.0, 6.0, -15.5),
+	])), Vector3.ZERO, _canvas))
+	_fore_and_aft.append(_add(self, _flat_sail(PackedVector3Array([
+		Vector3(0.0, 6.9, -25.0), Vector3(0.0, fore_cross - 1.5, -10.6),
+		Vector3(0.0, fore_top + 1.0, -11.0), Vector3(0.0, 7.2, -20.5),
+	])), Vector3.ZERO, _canvas))
+
+
+func _build_flags() -> void:
+	# The pennant at the main masthead, which streams the way the wind blows.
 	_pennant = Node3D.new()
 	_pennant.position = Vector3(0.0, DECK_Y + MAST_HEIGHT[1] + 0.3, MAST_Z[1] - 0.1)
 	add_child(_pennant)
@@ -308,12 +607,47 @@ func _build_head_rig() -> void:
 	st.generate_normals()
 	_add(_pennant, st.commit(), Vector3.ZERO, _canvas)
 
+	# The red ensign on its staff at the stern: a red flag with the Union of
+	# the day (before 1801, so without the red diagonal cross) in the corner.
+	var staff_foot := Vector3(0.0, ShipLayout.rail_y(ShipLayout.STERN_Z), ShipLayout.STERN_Z + 0.15)
+	_line(staff_foot, staff_foot + Vector3(0.0, 4.6, 0.9), 0.045, _wood)
+	_ensign = Node3D.new()
+	_ensign.position = staff_foot + Vector3(0.0, 4.4, 0.9)
+	add_child(_ensign)
+	var flag := SurfaceTool.new()
+	flag.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var red := Color(0.72, 0.10, 0.09)
+	var blue := Color(0.10, 0.14, 0.38)
+	var white := Color(0.92, 0.90, 0.84)
+	_flag_patch(flag, 0.0, 3.0, 0.0, -1.8, 0.0, red)
+	_flag_patch(flag, 0.0, 1.4, 0.0, -0.9, 0.004, blue)
+	_flag_patch(flag, 0.58, 0.82, 0.0, -0.9, 0.008, white)     # St George, edged white
+	_flag_patch(flag, 0.0, 1.4, -0.36, -0.54, 0.008, white)
+	_flag_patch(flag, 0.64, 0.76, 0.0, -0.9, 0.012, red)
+	_flag_patch(flag, 0.0, 1.4, -0.41, -0.49, 0.012, red)
+	flag.generate_normals()
+	_add(_ensign, flag.commit(), Vector3.ZERO, _canvas)
+
+
+## One coloured rectangle of a flag, lying in the plane x = `out`, running
+## from z0 to z1 along the fly and y0 to y1 down the hoist.
+func _flag_patch(st: SurfaceTool, z0: float, z1: float, y0: float, y1: float, out: float,
+		colour: Color) -> void:
+	for face: float in [-1.0, 1.0]:
+		var x := out * face
+		var corners: Array[Vector3] = [
+			Vector3(x, y0, z0), Vector3(x, y0, z1), Vector3(x, y1, z1), Vector3(x, y1, z0)]
+		for index: int in [0, 1, 2, 0, 2, 3]:
+			st.set_color(colour)
+			st.add_vertex(corners[index])
+
 
 ## A square sail hanging from its yard (the origin is the middle of the
-## yard), bellied forward, with panels of slightly different cloth.
-func _square_sail(head: float, foot: float, drop: float) -> ArrayMesh:
-	var across := 9
-	var down := 7
+## yard), bellied forward, with panels of slightly different cloth and,
+## on topsails, the darker bands where the reef points are sewn.
+func _square_sail(head: float, foot: float, drop: float, reef_bands: bool) -> ArrayMesh:
+	var across := 11
+	var down := 9
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for r in down:
@@ -324,6 +658,8 @@ func _square_sail(head: float, foot: float, drop: float) -> ArrayMesh:
 			var belly := 0.09 * width * sin(PI * u) * (0.3 + 0.7 * sin(PI * v))
 			var roach := 0.05 * drop * sin(PI * u) * v
 			var shade := 0.90 if c % 2 == 0 else 0.97
+			if reef_bands and (r == 1 or r == 2):
+				shade *= 0.86
 			st.set_color(Color(0.88 * shade, 0.82 * shade, 0.68 * shade))
 			st.add_vertex(Vector3((u - 0.5) * width, -drop * v + roach, -belly))
 	for r in down - 1:
@@ -344,6 +680,65 @@ func _flat_sail(corners: PackedVector3Array) -> ArrayMesh:
 	_quad(st, 0, 1, 2, 3)
 	st.generate_normals()
 	return st.commit()
+
+
+# --- smaller things ----------------------------------------------------------
+
+## An open boat, keel down, with thwarts across.
+func _boat(at: Vector3, length: float, beam: float) -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var stations := 9
+	var points := 7
+	for i in stations:
+		var u := float(i) / (stations - 1)
+		var half := beam * 0.5 * pow(sin(PI * clampf(u * 0.9 + 0.05, 0.0, 1.0)), 0.6)
+		for j in points:
+			var a := PI * j / (points - 1)
+			st.add_vertex(Vector3(-half * cos(a), 0.75 - 0.75 * pow(sin(a), 0.8), (u - 0.5) * length))
+	for i in stations - 1:
+		for j in points - 1:
+			var p := i * points + j
+			_quad(st, p, p + points, p + points + 1, p + 1)
+	st.generate_normals()
+	_add(self, st.commit(), at, _cream)
+	for k in 3:
+		_box(self, Vector3(beam * 0.8, 0.05, 0.22),
+				at + Vector3(0.0, 0.55, lerpf(-length * 0.28, length * 0.28, k / 2.0)), _wood)
+
+
+## An anchor hung up and down against the bow.
+func _anchor(at: Vector3, side: float) -> void:
+	_box(self, Vector3(0.12, 2.6, 0.12), at + Vector3(0.0, 0.3, 0.0), _iron)        # shank
+	_box(self, Vector3(0.14, 0.14, 2.2), at + Vector3(0.0, 1.5, 0.0), _wood)         # stock
+	for arm: float in [-1.0, 1.0]:
+		var fluke := _box(self, Vector3(0.1, 1.0, 0.16), at + Vector3(0.0, -0.7, arm * 0.4), _iron)
+		fluke.rotation.x = arm * 0.9
+	var ring := TorusMesh.new()
+	ring.inner_radius = 0.1
+	ring.outer_radius = 0.16
+	var eye := _add(self, ring, at + Vector3(side * 0.02, 1.75, 0.0), _iron)
+	eye.rotation.z = PI * 0.5
+
+
+## Adds a rope to the standing rigging.
+func _rope_between(from: Vector3, to: Vector3, radius: float) -> void:
+	_ribbon(_rig, from, to, radius)
+
+
+## A rope drawn as two thin strips crossed at right angles, so that it
+## shows from every side. All the ropes together make one mesh.
+func _ribbon(st: SurfaceTool, from: Vector3, to: Vector3, radius: float) -> void:
+	var along := (to - from).normalized()
+	var side := along.cross(Vector3.UP)
+	if side.length() < 0.01:
+		side = along.cross(Vector3.RIGHT)
+	side = side.normalized() * radius
+	var other := along.cross(side).normalized() * radius
+	for across: Vector3 in [side, other]:
+		var corners: Array[Vector3] = [from - across, from + across, to + across, to - across]
+		for index: int in [0, 1, 2, 0, 2, 3]:
+			st.add_vertex(corners[index])
 
 
 func _quad(st: SurfaceTool, a: int, b: int, c: int, d: int) -> void:
@@ -379,20 +774,18 @@ func _box(parent: Node3D, size: Vector3, pos: Vector3, mat: Material) -> MeshIns
 
 
 func _cylinder(parent: Node3D, top: float, bottom: float, height: float, pos: Vector3,
-		mat: Material) -> MeshInstance3D:
+		mat: Material, sides: int) -> MeshInstance3D:
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = top
 	mesh.bottom_radius = bottom
 	mesh.height = height
-	mesh.radial_segments = 12
+	mesh.radial_segments = sides
 	mesh.rings = 1
 	return _add(parent, mesh, pos, mat)
 
 
-## A rope or spar from one point to another.
-func _line(from: Vector3, to: Vector3, radius: float, mat: Material = null) -> void:
+## A solid spar from one point to another.
+func _line(from: Vector3, to: Vector3, radius: float, mat: Material) -> void:
 	var span := to - from
-	var inst := _cylinder(self, radius, radius, span.length(), (from + to) * 0.5,
-			mat if mat != null else _rope)
+	var inst := _cylinder(self, radius, radius, span.length(), (from + to) * 0.5, mat, 8)
 	inst.basis = Basis(Quaternion(Vector3.UP, span.normalized()))
-	inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

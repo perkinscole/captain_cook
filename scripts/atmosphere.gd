@@ -14,6 +14,7 @@ const LOW_SUN := Color(1.0, 0.70, 0.42)
 const HIGH_SUN := Color(1.0, 0.93, 0.80)
 
 var horizon := FAIR_HORIZON  ## the colour of the sky where it meets the sea
+var shelter: float = 0.0     ## 0 = out on deck, 1 = below, where little daylight reaches
 
 var _sky_mat: ShaderMaterial
 var _env: Environment
@@ -95,4 +96,5 @@ func apply(gloom: float, visibility: float, wind_from: float, day_part: float,
 	_env.fog_light_color = horizon
 	_env.fog_density = lerpf(0.0003, 0.005, thick)
 	_env.volumetric_fog_albedo = horizon.lerp(Color(1.0, 1.0, 1.0), 0.3)
-	_env.volumetric_fog_density = lerpf(0.0008, 0.014, thick)
+	_env.volumetric_fog_density = lerpf(0.0008, 0.014, thick) * (1.0 - 0.8 * shelter)
+	_env.ambient_light_energy = lerpf(0.8, 0.1, shelter)

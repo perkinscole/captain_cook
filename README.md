@@ -44,8 +44,8 @@ The ship now has a crew and stores:
 
 - **Five named hands** stand about the ship: the quartermaster at the wheel
   behind you, the leadsman at the starboard side, the boatswain's mate by the
-  mainmast, the cook forward, and the ship's boy at the masthead. Look at one
-  and press E for a word; what they say tells you how the lower deck is
+  mainmast, the cook forward, and the ship's boy at the masthead. Walk up to one, look at him
+  and press E for a word (the boy aloft you hail from the deck); what they say tells you how the lower deck is
   feeling. Each has health and morale, and does his job worse when either is
   low: slower sail handling, a sluggish helm, wilder soundings, a lookout who
   sees less far.
@@ -68,7 +68,7 @@ invented and its historical grounding is listed, for checking, at the top of
 
 There is also one story scene, to test telling the story through poses and
 dialogue instead of animation. Captain Cook stands on the quarterdeck, to your
-right. Look at him and press E to speak. Once the survey is complete he asks to
+right. Walk up to him, look at him and press E to speak. Once the survey is complete he asks to
 see the chart and puts one question to you; your answer changes how he regards
 you and how the finished chart is drawn. The ship lies hove to while you talk.
 
@@ -105,10 +105,15 @@ first prototype also tried holding the wheel directly; giving orders was chosen.
   and clumps of tall palms. Put the cross on one and press F.
 - **Crew cards.** C shows each hand as a card with a drawn face that changes
   with their health and spirits.
-- **Models.** The ship has a rounded hull, a planked deck, a wheel, rigging,
-  bellied sails that fill the wrong way when taken aback, and a red pennant at
-  the masthead that streams downwind. People are built from rounded shapes.
-  The island has ridged peaks and palms. All of it is still made in code.
+- **The ship.** A likeness of HM Bark Endeavour that you can walk about:
+  a raised forecastle with the windlass, bell and anchors; the waist with its
+  hatches, pumps, guns and the boats stowed overhead; a raised quarterdeck
+  with the wheel (which turns with the rudder) and capstan; and under it the
+  great cabin, with stern windows, the chart table and a lantern. Ladders join
+  the decks. She has full standing rigging with ratlines, bellied sails that
+  fill the wrong way when taken aback, a pennant that streams downwind and the
+  red ensign at the stern. Proportions are stretched a little so there is room
+  to walk. People are built from rounded shapes. All of it is made in code.
 - **Sound.** Sea, wind, creaking timbers, the ship's bell, the splash of the
   lead, and a boatswain's pipe for orders. Every sound is synthesised by
   `tools/make_sounds.py`, so they are stand-ins. There are no voices yet, but
@@ -124,12 +129,13 @@ first prototype also tried holding the wheel directly; giving orders was chosen.
 
 | Key | Action |
 | --- | --- |
-| A / D | Order the course one compass point to port / starboard |
-| W / S | Make / reduce sail |
+| W A S D | Walk the deck (Shift to hurry) |
+| Left / Right arrows | Order the course one compass point to port / starboard |
+| Up / Down arrows | Make / reduce sail |
 | Space, then Space | Start the lead swinging, then let go in the green |
 | Q, or hold right mouse | Raise the spyglass |
 | F | Take a bearing on the landmark under the spyglass cross |
-| E | Speak with the person you are looking at |
+| E | Speak with the person you have walked up to and are looking at |
 | Space, then 1 to 3 | Continue a conversation, then pick an answer |
 | Enter | Anchor, when nearly stopped in Matavai Bay |
 | M | Open or put away the chart table |
@@ -167,7 +173,9 @@ Systems are kept separate so each can be swapped:
 | `scripts/lead_line.gd`, `lead_gauge.gd` | Heaving the lead, and the timing gauge |
 | `scripts/charting.gd` | Coast sketched, bearings and fixes, accuracy, the ship's track |
 | `scripts/chart_view.gd` | Drawing the chart |
-| `scripts/ship_visual.gd`, `deck_camera.gd` | The ship model and first-person view |
+| `scripts/ship_layout.gd` | The plan of the ship: decks, ladders and what is in the way |
+| `scripts/ship_visual.gd` | The ship model, built from that plan |
+| `scripts/player.gd`, `deck_camera.gd` | Walking the deck, and the first-person view |
 | `scripts/supplies.gd` | Stores, rations and the passing of days |
 | `scripts/crew.gd`, `hand.gd` | The named hands, their health and morale, and how well each job is done |
 | `story/crew_lines.gd` | What each hand says, as data |

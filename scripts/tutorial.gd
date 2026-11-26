@@ -14,11 +14,15 @@ const STEPS: Array[Dictionary] = [
 	{"id": "look", "text": "Welcome aboard! I am Charles Clerke. Have a look about "
 			+ "you: move the mouse. That is Captain Cook at the rail on your right, "
 			+ "and old Trull at the wheel behind you."},
-	{"id": "sail", "text": "We are jogging along under topsails. Press W to make "
-			+ "more sail, twice, and feel her gather way. S takes it in again."},
+	{"id": "walk", "text": "Now stretch your legs. W, A, S and D walk you about the "
+			+ "deck. There are ladders down to the waist at the front of this "
+			+ "quarterdeck, and the door under it leads to the great cabin."},
+	{"id": "sail", "text": "We are jogging along under topsails. Press the Up arrow "
+			+ "twice to make more sail, and feel her gather way. The Down arrow takes "
+			+ "it in again."},
 	{"id": "course", "text": "The compass up on the left shows where her head points. "
-			+ "You do not hold the wheel: you give the course. Press A or D a few "
-			+ "times. One press is one point of the compass, and the brass pointer "
+			+ "You do not hold the wheel: you give the course. Press the Left "
+			+ "or Right arrow a few times. One press is one point of the compass, and the brass pointer "
 			+ "shows what you have ordered."},
 	{"id": "wind", "text": "Now the wind. The blue arrow on the compass flies the way "
 			+ "it blows. See the red wedge? No square-rigger sails into that. Keep the "
@@ -27,7 +31,7 @@ const STEPS: Array[Dictionary] = [
 			+ "to the table, and M again to put it away. The coast draws itself in "
 			+ "pencil as we sail in sight of it."},
 	{"id": "lead", "text": "There is coral round this island, and you cannot see it "
-			+ "in thick weather. Press S until we are under nine knots. Then press Space "
+			+ "in thick weather. Press the Down arrow until we are under nine knots. Then press Space "
 			+ "to set Pascoe swinging the lead, and Space again to let go when the "
 			+ "marker is in the green."},
 	{"id": "bearing", "text": "Pencil is only a sketch. To fix the coast in ink, press "
@@ -113,6 +117,8 @@ func _is_done(id: String) -> bool:
 	match id:
 		"look":
 			return _looked > 900.0 and _timer > 4.0
+		"walk":
+			return _noted.has("walked")
 		"sail":
 			return ship.sail >= 4 or (_noted.has("sail") and ship.sail >= 3 and _timer > 6.0)
 		"course":

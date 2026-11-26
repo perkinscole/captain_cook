@@ -10,6 +10,11 @@ var _yaw: float = 0.0
 var _pitch: float = 0.0
 
 
+## Which way the view is turned, as a yaw in the ship's space.
+func yaw() -> float:
+	return _yaw
+
+
 func look(relative: Vector2) -> void:
 	_yaw = wrapf(_yaw - relative.x * SENSITIVITY * sensitivity_scale, -PI, PI)
 	_pitch = clampf(_pitch - relative.y * SENSITIVITY * sensitivity_scale, -1.2, 1.3)

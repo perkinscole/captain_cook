@@ -16,7 +16,10 @@ extends Node3D
 const PAINTERLY := preload("res://shaders/painterly.gdshader")
 const START_POSITION := Vector3(0.0, 0.0, 700.0)
 const DECK_Y := ShipVisual.DECK_Y
-const COOK_POSITION := Vector3(2.6, DECK_Y, 8.0)  # quarterdeck, starboard side
+const QD_Y := ShipLayout.QUARTERDECK_Y
+const COOK_POSITION := Vector3(2.6, QD_Y, 8.0)  # quarterdeck, starboard side
+const CALLED_AFT := Vector3(0.0, QD_Y, 11.2)    # where you stand when sent for
+const TALK_RANGE := 4.5                         # metres: walk up to someone to speak
 const COOK_IDLE_FACING := -0.9                    # looking out over the bow
 const MATAVAI_ANGLE := -1.74  # where the bay lies: on the north side, just west of Point Venus
 const AIM_CONE := 0.9996  # cosine of how near the cross-hairs a landmark must be
@@ -36,6 +39,7 @@ var crew: Crew
 var charting: Charting
 var landfall: Landfall
 var camera: DeckCamera
+var player: Player
 var control: OrdersMode
 var story := StoryState.new()
 var dialogue: Dialogue
@@ -126,13 +130,17 @@ func _ready() -> void:
 	ship.add_child(visual)
 
 	camera = DeckCamera.new()
-	camera.position = Vector3(0.0, DECK_Y + 1.75, 11.5)
 	camera.fov = 75.0
 	camera.near = 0.1
 	camera.far = 9000.0
 	ship.add_child(camera)
 	camera.make_current()
 	landfall.deck_camera = camera
+	player = Player.new()
+	player.camera = camera
+	add_child(player)
+	player.place(CALLED_AFT)
+	player.footfall.connect(func() -> void: sound.play("footstep", -9.0, randf_range(0.85, 1.15)))
 	var followers := Birds.new()
 	followers.count = 4
 	followers.spread = Vector2(25.0, 70.0)
@@ -180,11 +188,15 @@ func _ready() -> void:
 	crew.news.connect(_on_news)
 	supplies.set_process(false)  # the clock starts when the lessons end
 	crew.set_process(false)
-	_place_hand("helm", Vector3(0.0, DECK_Y, 13.6), 0.0)
-	_place_hand("lead", Vector3(3.3, DECK_Y, 2.0), -PI * 0.5)
+	_place_hand("helm", Vector3(0.0, QD_Y, 13.6), 0.0)
+	_place_hand("lead", Vector3(3.3, DECK_Y, -0.3), -PI * 0.5)
 	_place_hand("sails", Vector3(-1.7, DECK_Y, -2.0), PI)
-	_place_hand("cook", Vector3(1.6, DECK_Y, -8.5), PI)
+	_place_hand("cook", Vector3(0.0, DECK_Y, -6.9), PI)
 	_place_hand("lookout", Vector3(0.0, DECK_Y + 30.0 * ShipVisual.TOP_AT + 0.08, 0.85), 0.0)
+
+	player.people.append(cook.position)
+	for h: Hand in _hand_figures:
+		player.people.append((_hand_figures[h] as Figure).position)
 
 	dialogue = Dialogue.new()
 	dialogue.story = story
@@ -245,6 +257,11 @@ func _process(delta: float) -> void:
 	_sail_sounds()
 
 	var talking := dialogue.active
+	player.can_move = not talking
+	if player.walked > 8.0:
+		tutorial.note("walked")
+	var below := 1.0 if ShipLayout.is_in_cabin(player.feet) else 0.0
+	atmosphere.shelter = lerpf(atmosphere.shelter, below, 1.0 - exp(-3.0 * delta))
 	if talking:
 		spyglass_up = false
 	var ease := 1.0 - exp(-10.0 * delta)
@@ -256,7 +273,8 @@ func _process(delta: float) -> void:
 
 	# What is the player looking at, and what could they do about it?
 	var to_cook := (ship.to_global(cook.eye_position()) - camera.global_position).normalized()
-	cook_in_view = not spyglass_up and to_cook.dot(-camera.global_transform.basis.z) > 0.93
+	cook_in_view = not spyglass_up and to_cook.dot(-camera.global_transform.basis.z) > 0.9 \
+			and camera.position.distance_to(cook.eye_position()) < TALK_RANGE
 	hand_in_view = null if cook_in_view or spyglass_up else _find_hand_in_view()
 	var someone := cook_in_view or hand_in_view != null
 	landmark_in_view = _find_landmark_in_view() if spyglass_up else -1
@@ -350,16 +368,16 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _sailing_key(key: Key) -> void:
 	match key:
-		KEY_A, KEY_D:
+		KEY_LEFT, KEY_RIGHT:
 			control.handle_key(ship, key)
-			var side := "port" if key == KEY_A else "starboard"
+			var side := "port" if key == KEY_LEFT else "starboard"
 			hud.callout("Trull, at the wheel", "%s a point, aye! Steering %s." % [
 				side.capitalize(), Compass.point_name(control.ordered_deg)])
 			if not sound.say("helm_" + side):
 				sound.play("pipe_helm", -14.0)
-		KEY_W:
+		KEY_UP:
 			_order_sail(ship.sail + 1)
-		KEY_S:
+		KEY_DOWN:
 			_order_sail(ship.sail - 1)
 		KEY_SPACE:
 			lead.heave()
@@ -499,6 +517,7 @@ func _speak_with_cook() -> void:
 
 func _anchor_at_matavai() -> void:
 	_scene = "landfall"
+	player.place(CALLED_AFT)  # you are sent for, wherever you were
 	chart_large = false
 	ship.hove_to = true
 	ship.set_sail(0)
@@ -650,10 +669,17 @@ func _find_hand_in_view() -> Hand:
 	var eye := camera.global_position
 	var looking := -camera.global_transform.basis.z
 	var best: Hand = null
-	var best_dot := 0.975
+	var best_dot := 0.9
 	for h: Hand in _hand_figures:
 		var figure: Figure = _hand_figures[h]
+		# You must walk up to a man to speak to him. The boy at the masthead
+		# is the exception: you hail him from the deck, looking straight at him.
+		var aloft := h.role == "lookout"
+		if not aloft and camera.position.distance_to(figure.eye_position()) > TALK_RANGE:
+			continue
 		var d := (ship.to_global(figure.eye_position()) - eye).normalized().dot(looking)
+		if aloft and d < 0.985:
+			continue
 		if d > best_dot:
 			best_dot = d
 			best = h

@@ -13,7 +13,7 @@ func mode_name() -> String:
 
 
 func help() -> String:
-	return "A / D  order course one point to port / starboard"
+	return "Left / Right  order course one point to port / starboard"
 
 
 func status(_ship: Ship) -> String:
@@ -25,10 +25,10 @@ func activate(ship: Ship) -> void:
 
 
 func handle_key(_ship: Ship, keycode: Key) -> bool:
-	if keycode == KEY_A:
+	if keycode == KEY_LEFT:
 		ordered_deg = wrapf(ordered_deg - POINT_DEG, 0.0, 360.0)
 		return true
-	if keycode == KEY_D:
+	if keycode == KEY_RIGHT:
 		ordered_deg = wrapf(ordered_deg + POINT_DEG, 0.0, 360.0)
 		return true
 	return false

@@ -204,6 +204,14 @@ def tick():
                 + 0.5 * lowpass(noise(0.09), 2500) * np.exp(-90 * tt), 0.001, 0.02)
 
 
+def footstep():
+    """A shoe on a wooden deck: a dull knock."""
+    tt = t(0.16)
+    knock = np.sin(2 * np.pi * (150 - 300 * tt) * tt) * np.exp(-38 * tt)
+    scuff = lowpass(noise(0.16), 1800) * np.exp(-55 * tt)
+    return fade(knock + 0.5 * scuff, 0.001, 0.04)
+
+
 def chain():
     """The anchor cable running out."""
     seconds = 2.4
@@ -231,6 +239,7 @@ def main():
     save("paper", paper(), 0.4)
     save("tick", tick(), 0.4)
     save("anchor", chain())
+    save("footstep", footstep(), 0.5)
     # Boatswain's calls. Real calls were a language of their own; these are
     # simple stand-ins with the right kind of sound, not the true signals.
     save("pipe_make_sail", pipe([(0.25, LOW, LOW, False), (0.5, LOW, HIGH, False),
