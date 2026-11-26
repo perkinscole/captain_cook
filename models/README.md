@@ -15,7 +15,7 @@ missing (see `scripts/models.gd`).
 | `characters/officer/` | Mr Clerke, standing on the quarterdeck |
 | `characters/marine/` | The sentry pacing the quarterdeck |
 | `characters/banks/` | Mr Banks, in the great cabin |
-| `ship/hull.glb` | An outer shell wrapped round the code-built ship. Only seen from outside. |
+| `ship/hull_fitted.glb` | The hull: planked sides, the inside of the bulwarks and the deck planking. Made from `source/hull.glb` by `tools/fit_hull.py`, which reshapes the model to the ship's plan in `scripts/ship_layout.gd`; run it again if that plan changes. |
 | `ship/wheel.glb`, `capstan.glb`, `windlass.glb`, `anchor.glb`, `lantern.glb` | Deck fittings |
 | `ship/boat_light.glb` | The longboat and the pinnace, stowed over the waist. About 28,000 triangles. |
 | `ship/gun_light.glb` | The four 4-pounder guns in the waist. About 14,000 triangles. |

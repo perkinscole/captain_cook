@@ -14,12 +14,6 @@ extends Node3D
 
 const DECK_SHADER := preload("res://shaders/deck.gdshader")
 const SHELL_SHADER := preload("res://shaders/hull_shell.gdshader")
-## How the modelled hull is stretched to wrap round this ship: metres per
-## unit of the model along her length, height and beam, then how far up and
-## aft its middle sits. The same numbers are in hull_shell.gdshader.
-const SHELL_FIT := Vector3(16.6, 15.5, 14.6)
-const SHELL_UP := 2.54
-const SHELL_AFT := -0.5
 
 const DECK_Y := ShipLayout.WAIST_Y   # the masts are measured from the waist
 const STATIONS := 44
@@ -53,6 +47,7 @@ var _ensign: Node3D
 var _wheel: Node3D
 var _shell: Node3D            # the modelled outer hull, if there is one
 var _skin: MeshInstance3D     # the code-built outer hull
+var _inner: MeshInstance3D    # the inside of the code-built bulwarks
 var _skin_both_sides: ShaderMaterial
 var _skin_inside_only: ShaderMaterial
 var _time: float = 0.0
@@ -201,8 +196,8 @@ func _build_hull() -> void:
 		for side: float in [-1.0, 1.0]:
 			inner.add_vertex(Vector3(side * b_in, ShipLayout.deck_top(z), z))
 			inner.add_vertex(Vector3(side * b_in, top, z))
-			cap.add_vertex(Vector3(side * b_in, top, z))
-			cap.add_vertex(Vector3(side * (b + 0.06), top, z))
+			cap.add_vertex(Vector3(side * maxf(b - 0.34, 0.0), top, z))
+			cap.add_vertex(Vector3(side * (b + 0.16), top, z))
 			lining.add_vertex(Vector3(side * b_in, ShipLayout.WAIST_Y, z))
 			lining.add_vertex(Vector3(side * b_in, ShipLayout.QUARTERDECK_Y, z))
 	for i in STATIONS - 1:
@@ -216,15 +211,17 @@ func _build_hull() -> void:
 				_quad(lining, p, p + 4, p + 5, p + 1)
 	inner.generate_normals()
 	cap.generate_normals()
-	_add(self, inner.commit(), Vector3.ZERO, _red)
+	_inner = _add(self, inner.commit(), Vector3.ZERO, _red)
 	_add(self, cap.commit(), Vector3.ZERO, _dark)
 	lining.generate_normals()
 	_add(self, lining.commit(), Vector3.ZERO, _cream)
 
 
-## Wraps the modelled hull round the ship as an outer shell, if the model is
-## there. It lies along its own X with the bow toward -X, so it is turned
-## and stretched to lie along the ship.
+## Puts the modelled hull round the ship, if the model is there. It has
+## already been reshaped to her plan and is in her own measure (see
+## tools/fit_hull.py), so it goes on just as it is. Her planked sides, the
+## inside of her bulwarks and her deck planking are then the model's; the
+## built ones stay underneath, as the floor and as a backing.
 func _build_shell() -> void:
 	if not Models.has(Models.HULL):
 		return
@@ -235,10 +232,6 @@ func _build_shell() -> void:
 	if model == null:
 		return
 	_shell = Node3D.new()
-	_shell.transform = Transform3D(
-			Basis(Vector3(0.0, 0.0, SHELL_FIT.x), Vector3(0.0, SHELL_FIT.y, 0.0),
-					Vector3(-SHELL_FIT.z, 0.0, 0.0)),
-			Vector3(0.0, SHELL_UP, SHELL_AFT))
 	add_child(_shell)
 	_shell.add_child(model)
 	for part in Models.meshes_of(model):
@@ -248,19 +241,28 @@ func _build_shell() -> void:
 		var mat := ShaderMaterial.new()
 		mat.shader = SHELL_SHADER
 		mat.set_shader_parameter("picture", picture)
-		mat.set_shader_parameter("fit_scale", SHELL_FIT)
-		mat.set_shader_parameter("fit_up", SHELL_UP)
-		mat.set_shader_parameter("fit_aft", SHELL_AFT)
+		mat.set_shader_parameter("deck_heights", Vector3(
+				ShipLayout.FORECASTLE_Y, ShipLayout.WAIST_Y, ShipLayout.QUARTERDECK_Y))
+		mat.set_shader_parameter("breaks", Vector2(
+				ShipLayout.FORECASTLE_BREAK_Z, ShipLayout.QUARTERDECK_BREAK_Z))
+		mat.set_shader_parameter("bulwark", ShipLayout.BULWARK)
+		mat.set_shader_parameter("hatch", Vector4(
+				ShipLayout.COMPANION_X, ShipLayout.COMPANION_HALF_WIDTH,
+				minf(ShipLayout.COMPANION_HEAD_Z, ShipLayout.COMPANION_FOOT_Z),
+				maxf(ShipLayout.COMPANION_HEAD_Z, ShipLayout.COMPANION_FOOT_Z)))
 		part.material_override = mat
 	show_shell(true)
 
 
-## Shows the modelled outer hull, or goes back to the code-built one.
+## Shows the modelled hull, or goes back to the code-built one.
 func show_shell(on: bool) -> bool:
 	if _shell == null:
 		return false
 	_shell.visible = on
 	_skin.material_override = _skin_inside_only if on else _skin_both_sides
+	# Behind the model's bulwarks the built ones are plain wood, not red, so
+	# that nothing shows through the joins.
+	_inner.material_override = _wood if on else _red
 	return on
 
 

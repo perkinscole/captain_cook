@@ -84,6 +84,7 @@ static func dress_as_tupaia(figure: Figure) -> void:
 	figure.hair_color = Color(0.07, 0.06, 0.05)
 	figure.neck_color = Color(0.90, 0.85, 0.72)
 	figure.wears_hat = false
+	figure.model_path = Models.TUPAIA   # used once the model is there
 
 
 func can_anchor(ship: Ship) -> bool:
