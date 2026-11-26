@@ -5,7 +5,8 @@ extends Node3D
 ## switch between the view from the deck and the view from the sand.
 ## It does not know what is said there: that is data in story/.
 
-const ANCHOR_RADIUS := 100.0     ## how near the mark the ship must be
+const ANCHOR_RADIUS := 130.0     ## how near the mark the ship must be
+const TOW_RANGE := 450.0         ## how far off the boats can tow her in from
 const ANCHOR_MAX_SPEED := 2.5    ## m/s. Come in under easy sail.
 const OFF_SHORE := 170.0
 const EYE_HEIGHT := 1.65
@@ -87,6 +88,13 @@ static func dress_as_tupaia(figure: Figure) -> void:
 func can_anchor(ship: Ship) -> bool:
 	var here := Vector2(ship.position.x, ship.position.z)
 	return here.distance_to(anchorage) <= ANCHOR_RADIUS and absf(ship.speed) <= ANCHOR_MAX_SPEED
+
+
+## Is she close enough, and slow enough, for the boats to tow her in?
+func can_tow(ship: Ship) -> bool:
+	var off := Vector2(ship.position.x, ship.position.z).distance_to(anchorage)
+	return off <= TOW_RANGE and off > ANCHOR_RADIUS * 0.5 and absf(ship.speed) <= 3.5 \
+			and not ship.towing
 
 
 func is_near(ship: Ship) -> bool:

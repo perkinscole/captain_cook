@@ -79,6 +79,7 @@ var _was_shivering: bool = false
 var _in_hammock: Dictionary = {}    # Hand -> which hammock they are lying in
 var _station: Dictionary = {}       # Hand -> where they stand when well
 var _spray_wait: float = 0.0
+var _stuck_for: float = 0.0
 
 
 func _ready() -> void:
@@ -258,11 +259,18 @@ func _physics_process(delta: float) -> void:
 	control.helm_skill = crew.efficiency("helm")
 	lead.skill = crew.efficiency("lead")
 	_aground_lately = maxf(0.0, _aground_lately - delta)
+	_tow_and_stuck(delta)
 	_ride_the_waves(delta)
 
 	var here := Vector2(ship.position.x, ship.position.z)
 	var depth := seabed.depth_at(here)
-	if depth < Seabed.SHIP_DRAUGHT:
+	if depth < Seabed.SHIP_DRAUGHT and ship.towing:
+		# The boats ahead have found shoal water. Stop before she touches.
+		ship.towing = false
+		ship.run_aground(Vector3(_last_safe.x, 0.0, _last_safe.y))
+		control.activate(ship)
+		_say("The boats find shoal water ahead and cast off the tow. Try from another quarter.", 8.0)
+	elif depth < Seabed.SHIP_DRAUGHT:
 		_run_aground()
 	elif depth > Seabed.SHIP_DRAUGHT + 1.5:
 		_last_safe = here
@@ -334,6 +342,9 @@ func _process(delta: float) -> void:
 		hud.set_lesson(tutorial.title(), tutorial.text())
 		if may_anchor:
 			hud.set_prompt("Enter", "anchor in %s" % landfall.anchorage_name)
+		elif not story.has_flag("landfall_done") and landfall.can_tow(ship):
+			hud.set_prompt("Enter", "hoist out the boats and tow her into %s"
+					% landfall.anchorage_name)
 		elif cook_in_view:
 			hud.set_prompt("E", "speak with Captain Cook")
 		elif hand_in_view != null:
@@ -449,8 +460,12 @@ func _sailing_key(key: Key) -> void:
 			elif hand_in_view != null:
 				_speak_with_hand(hand_in_view)
 		KEY_ENTER:
-			if not story.has_flag("landfall_done") and landfall.can_anchor(ship):
+			if story.has_flag("landfall_done"):
+				pass
+			elif landfall.can_anchor(ship):
 				_anchor_at_matavai()
+			elif landfall.can_tow(ship):
+				_start_tow()
 		KEY_M:
 			chart_large = not chart_large
 			sound.play("paper")
@@ -479,7 +494,49 @@ func _sailing_key(key: Key) -> void:
 				_say("There is no grog to spare.", 4.0)
 
 
+func _start_tow() -> void:
+	ship.set_sail(0)
+	ship.tow_to = landfall.anchorage
+	ship.towing = true
+	crew.cheer(-3.0)   # it is hard work at the oars
+	sound.play("pipe_attention", -8.0)
+	hud.callout("Harker, boatswain's mate", "Away the longboat and the pinnace! Pass the tow line!")
+	_say("The boats take her in tow. It is slow, but no wind can stop it. "
+			+ "Making sail casts off the tow.", 10.0)
+
+
+## Brings a tow to its end at the anchorage, and gives a hint when the ship
+## has been lying stopped for a while with no way to get going.
+func _tow_and_stuck(delta: float) -> void:
+	if ship.towing:
+		_stuck_for = 0.0
+		var off := Vector2(ship.position.x, ship.position.z).distance_to(landfall.anchorage)
+		if off < Landfall.ANCHOR_RADIUS * 0.45:
+			ship.towing = false
+			ship.speed = 0.0
+			control.activate(ship)
+			if not story.has_flag("landfall_done") and not dialogue.active:
+				_anchor_at_matavai()
+		return
+	if dialogue.active or ship.hove_to or absf(ship.speed) > 0.4 or tutorial.active:
+		_stuck_for = 0.0
+		return
+	_stuck_for += delta
+	if _stuck_for < 12.0:
+		return
+	_stuck_for = -25.0   # do not nag
+	if ship.sail == 0:
+		_say("She has no sail set and will not move. Press the Up arrow to make sail.", 8.0)
+	elif ship.angle_off_wind() < Ship.NO_GO_DEG + 5.0:
+		_say("She is head to wind and cannot sail there. Order a course outside the red "
+				+ "wedge on the compass, and zig-zag toward where you want to go.", 10.0)
+
+
 func _order_sail(level: int) -> void:
+	if ship.towing and level > ship.sail:
+		ship.towing = false
+		control.activate(ship)
+		_say("The tow is cast off.", 4.0)
 	var before := ship.sail
 	var granted := ship.set_sail(level)
 	if not granted and ship.sail_limit < Ship.MAX_SAIL:

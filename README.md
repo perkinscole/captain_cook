@@ -59,7 +59,8 @@ The ship now has a crew and stores:
 And there is a landfall. The island is a stand-in for Tahiti in 1769 (the
 shape is made up; only Point Venus and Matavai Bay are real names). Matavai
 Bay is marked on the chart on the north side. Bring the ship nearly to a stop
-there and press Enter to anchor. Cook sends you ashore to trade for fresh food,
+there and press Enter to anchor. If the wind will not let you sail in, get
+within about 450 m, slow down, and press Enter to have the boats tow her in. Cook sends you ashore to trade for fresh food,
 and Tupaia, a navigator and priest from Ra'iatea, goes with you. Two choices on
 the beach decide how much food comes back, how the people ashore regard the
 ship, what Tupaia makes of you, and what Cook says afterwards. The scene is

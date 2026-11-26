@@ -44,9 +44,9 @@ func _ready() -> void:
 	add_child(_spray)
 
 	var streak_mat := white.duplicate() as StandardMaterial3D
-	streak_mat.albedo_color = Color(0.85, 0.88, 0.92, 0.35)
+	streak_mat.albedo_color = Color(0.85, 0.88, 0.92, 0.2)
 	var streak := QuadMesh.new()
-	streak.size = Vector2(0.025, 0.9)
+	streak.size = Vector2(0.012, 0.55)
 	streak.material = streak_mat
 	_rain = CPUParticles3D.new()
 	_rain.mesh = streak

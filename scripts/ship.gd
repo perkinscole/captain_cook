@@ -39,6 +39,11 @@ var wave_roll: float = 0.0
 var leeway_deg: float = 0.0   ## how far her real track sags downwind of her heading
 var strain: float = 0.0       ## seconds spent over-pressed
 var sail_handling: float = 1.0  ## how smartly the hands work the sails, 0..1
+## Towed by her own boats: the hands row ahead with a line. Slow, but it
+## works against any wind, which is how ships got into harbour when the
+## wind would not serve.
+var towing: bool = false
+var tow_to := Vector2.ZERO    ## world (x, z) the boats are making for
 var hove_to: bool = false     ## lying stopped with a topsail backed, e.g. to talk
 
 var _time: float = 0.0
@@ -110,6 +115,10 @@ func _physics_process(delta: float) -> void:
 	var rate := 0.12 if wanted_canvas > canvas else 0.2
 	canvas = move_toward(canvas, wanted_canvas, rate * sail_handling * delta)
 
+	if towing:
+		_be_towed(delta)
+		return
+
 	# Drive from the sails. Aback, the wind pushes her slowly astern.
 	var push := HULL_SPEED * (1.0 - exp(-wind.strength * canvas * 1.3 / 8.0))
 	var target := push * polar(a)
@@ -158,6 +167,23 @@ func _physics_process(delta: float) -> void:
 	_roll = lerpf(_roll, heel, 1.0 - exp(-2.0 * delta))
 
 	position = pos
+	rotation = Vector3(wave_pitch, -deg_to_rad(heading_deg), _roll + wave_roll)
+
+
+## Moves her slowly toward `tow_to` behind the boats, whatever the wind.
+func _be_towed(delta: float) -> void:
+	var here := Vector2(position.x, position.z)
+	var wanted := Compass.from_vector(tow_to - here)
+	var off := wrapf(wanted - heading_deg, -180.0, 180.0)
+	heading_deg = wrapf(heading_deg + clampf(off, -9.0 * delta, 9.0 * delta), 0.0, 360.0)
+	# The boats can only pull her ahead once she is pointing roughly right.
+	var pull := 1.5 if absf(off) < 50.0 else 0.4
+	speed = move_toward(speed, pull, 0.5 * delta)
+	leeway_deg = 0.0
+	var fwd2 := Compass.to_vector(heading_deg)
+	position = Vector3(position.x + fwd2.x * speed * delta, wave_lift,
+			position.z + fwd2.y * speed * delta)
+	_roll = lerpf(_roll, 0.0, 1.0 - exp(-2.0 * delta))
 	rotation = Vector3(wave_pitch, -deg_to_rad(heading_deg), _roll + wave_roll)
 
 
