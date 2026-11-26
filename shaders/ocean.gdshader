@@ -166,7 +166,7 @@ void fragment() {
 	sea += vec3(0.02, 0.10, 0.09) * smoothstep(0.35, 1.0, crest);  // light through the crests
 	float shoal = 1.0 - smoothstep(1.5, 14.0, depth);
 	sea = mix(sea, shallow, shoal * 0.6 * (1.0 - 0.6 * storm));
-	sea = paint_colour(sea, paint, 0.16, vec3(p.x, 0.0, p.y) * 0.25);
+	sea = paint_colour(sea, paint, 0.16, vec3(p.x, 0.0, p.y) * 0.25, 0.2);
 
 	// Seen at a low angle the sea takes the colour of the sky.
 	float facing = clamp(dot(NORMAL, VIEW), 0.0, 1.0);

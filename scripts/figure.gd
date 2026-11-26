@@ -97,7 +97,7 @@ func _ready() -> void:
 	_quirk = randf_range(0.0, TAU)
 	var coat := _material(coat_color)
 	var legs := _material(legs_color)
-	var skin := _material(skin_color)
+	var skin := Paint.skin(skin_color)
 	var hair := _material(hair_color)
 	var neck := _material(neck_color)
 	var black := _material(Color(0.05, 0.05, 0.06))
@@ -142,11 +142,22 @@ func _ready() -> void:
 	# Head: face, nose, eyes, hair tied back in a queue, and a hat or cap.
 	var head := _joint(torso, "head", Vector3(0.0, 0.62, 0.0))
 	_ball(head, Vector3(0.1, 0.125, 0.105), Vector3(0.0, 0.12, 0.0), skin)
-	_ball(head, Vector3(0.02, 0.03, 0.03), Vector3(0.0, 0.11, -0.1), skin)       # nose
+	_ball(head, Vector3(0.018, 0.032, 0.03), Vector3(0.0, 0.108, -0.1), skin)     # nose
+	_ball(head, Vector3(0.07, 0.03, 0.03), Vector3(0.0, 0.168, -0.082), skin)     # brow
+	_ball(head, Vector3(0.05, 0.04, 0.04), Vector3(0.0, 0.03, -0.07), skin)       # chin
+	var lips := Paint.skin(skin_color.darkened(0.3).lerp(Color(0.5, 0.2, 0.18), 0.4))
+	_ball(head, Vector3(0.028, 0.007, 0.01), Vector3(0.0, 0.066, -0.097), lips)   # mouth
 	for side: float in [-1.0, 1.0]:
-		_ball(head, Vector3(0.014, 0.014, 0.01), Vector3(side * 0.036, 0.145, -0.092), black)
+		# Small eyes set under the brow, with a brow line above each.
+		_ball(head, Vector3(0.012, 0.009, 0.008), Vector3(side * 0.036, 0.142, -0.094),
+				Paint.skin(Color(0.9, 0.88, 0.84)))
+		_ball(head, Vector3(0.006, 0.007, 0.006), Vector3(side * 0.036, 0.142, -0.1),
+				Paint.skin(Color(0.08, 0.06, 0.05)))
+		_ball(head, Vector3(0.022, 0.005, 0.008), Vector3(side * 0.037, 0.162, -0.097),
+				Paint.skin(hair_color.darkened(0.3)))
 		_ball(head, Vector3(0.015, 0.03, 0.02), Vector3(side * 0.1, 0.12, 0.0), skin)  # ears
-	_ball(head, Vector3(0.106, 0.105, 0.108), Vector3(0.0, 0.16, 0.02), hair)
+	# Hair sits on the crown and the back of the head, clear of the face.
+	_ball(head, Vector3(0.104, 0.095, 0.1), Vector3(0.0, 0.178, 0.035), hair)
 	_capsule(head, 0.022, 0.2, Vector3(0.0, 0.04, 0.115), hair)                   # queue
 	_ball(head, Vector3(0.03, 0.02, 0.03), Vector3(0.0, 0.12, 0.112), black)      # its ribbon
 	if wears_hat:
@@ -156,7 +167,8 @@ func _ready() -> void:
 		brim.rotation.y = PI
 		_cylinder(head, 0.095, 0.105, 0.1, Vector3(0.0, 0.285, 0.0), black)
 	elif wears_cap:
-		_ball(head, Vector3(0.108, 0.085, 0.11), Vector3(0.0, 0.21, 0.01), _material(cap_color))
+		# A knitted cap, worn on the back of the head above the brow.
+		_ball(head, Vector3(0.107, 0.07, 0.108), Vector3(0.0, 0.232, 0.02), _material(cap_color))
 
 	# Arms: upper arm, elbow, forearm and hand.
 	for side: float in [-1.0, 1.0]:
@@ -264,7 +276,7 @@ func _joint(parent: Node3D, part: String, pos: Vector3) -> Node3D:
 
 
 func _material(color: Color) -> ShaderMaterial:
-	return Paint.material(color, 0.1)   # small strokes: people are small
+	return Paint.cloth(color)
 
 
 ## A rounded lump, given by its half-size along each axis.

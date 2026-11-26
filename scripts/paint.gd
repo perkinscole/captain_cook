@@ -16,3 +16,22 @@ static func material(colour: Color, stroke: float = 0.3, roughness: float = 0.6)
 	mat.set_shader_parameter("stroke", stroke)
 	mat.set_shader_parameter("roughness", roughness)
 	return mat
+
+
+## Skin: smooth, blended paint with no dark gaps, the way a portrait painter
+## works a face, so that features stay readable.
+static func skin(colour: Color) -> ShaderMaterial:
+	var mat := material(colour, 0.06, 0.7)
+	mat.set_shader_parameter("variation", 0.05)
+	mat.set_shader_parameter("relief", 0.3)
+	mat.set_shader_parameter("ground", 0.0)
+	return mat
+
+
+## Cloth: softer and less broken than wood or rock.
+static func cloth(colour: Color) -> ShaderMaterial:
+	var mat := material(colour, 0.12, 0.75)
+	mat.set_shader_parameter("variation", 0.1)
+	mat.set_shader_parameter("relief", 0.7)
+	mat.set_shader_parameter("ground", 0.08)
+	return mat

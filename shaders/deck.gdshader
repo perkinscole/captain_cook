@@ -30,7 +30,7 @@ void fragment() {
 
 	float screen_px = 70.0 * VIEWPORT_SIZE.y / 720.0;
 	vec4 paint = paint_on(local_pos, normalize(local_normal), 0.3, screen_px);
-	vec3 colour = paint_colour(wood * tone, paint, 0.15, local_pos);
+	vec3 colour = paint_colour(wood * tone, paint, 0.15, local_pos, 0.15);
 	ALBEDO = colour * (1.0 - 0.75 * max(seam, butt));
 	NORMAL = paint_relief(normalize(NORMAL), VERTEX, paint, 0.8);
 	ROUGHNESS = 0.7;

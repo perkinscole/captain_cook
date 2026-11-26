@@ -6,11 +6,13 @@
 // Strokes on a surface facing any way: three flat coats, one for each
 // axis, blended by which way the surface faces.
 vec3 paint_coat(vec3 pos, vec3 nrm, float size) {
-	vec3 w = pow(abs(nrm), vec3(4.0));
+	// One of the three coats wins outright almost everywhere. Blended half
+	// and half, as on the round of a mast, two coats make a herringbone.
+	vec3 w = pow(abs(nrm), vec3(14.0));
 	w /= (w.x + w.y + w.z + 0.0001);
 	vec3 q = pos / size;
-	return paint_layers(q.zy, 0.35, 1.0) * w.x + paint_layers(q.xz, -0.5, 1.0) * w.y
-			+ paint_layers(q.xy, 0.2, 1.0) * w.z;
+	return paint_layers(q.zy, 0.35, 0.6) * w.x + paint_layers(q.xz, -0.5, 0.6) * w.y
+			+ paint_layers(q.xy, 0.2, 0.6) * w.z;
 }
 
 // The paint on a point of a surface.
@@ -32,7 +34,8 @@ vec4 paint_on(vec3 pos, vec3 nrm, float stroke, float screen_px) {
 //   paint      what paint_on returned
 //   variation  how freely the colour is varied
 //   pos        the point, in the object's space, for the slow drift of colour
-vec3 paint_colour(vec3 base, vec4 paint, float variation, vec3 pos) {
+//   ground     how dark the bare ground shows in the gaps between strokes
+vec3 paint_colour(vec3 base, vec4 paint, float variation, vec3 pos, float ground) {
 	// Each stroke: now a little lighter and warmer, now darker and cooler.
 	float t = (paint.x - 0.5) * 2.0;
 	vec3 mixed = base * mix(vec3(0.84, 0.90, 1.04), vec3(1.15, 1.06, 0.88), 0.5 + 0.5 * t);
@@ -46,7 +49,7 @@ vec3 paint_colour(vec3 base, vec4 paint, float variation, vec3 pos) {
 	mixed *= mix(vec3(1.0), vec3(1.0 + 0.5 * drift_hue, 1.0, 1.0 - 0.5 * drift_hue), variation * 1.8);
 	// Thicker paint is brighter; the dark ground shows in the gaps.
 	mixed *= 1.0 - variation + 2.0 * variation * (0.35 + 0.65 * paint.y);
-	return mixed * (1.0 - 0.38 * paint.w);
+	return mixed * (1.0 - ground * paint.w);
 }
 
 // Tilts a surface's normal to follow the thickness of the paint, so that

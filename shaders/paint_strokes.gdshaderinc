@@ -58,7 +58,7 @@ vec3 paint_strokes(vec2 uv, float turn, float freedom) {
 	// As the brush runs dry toward the end of a stroke, it skips, and the
 	// ground shows through between the hairs and between the strokes.
 	float dry = smoothstep(0.55, 1.0, along) * smoothstep(0.45, 0.75, hairs);
-	float gap = max(1.0 - smoothstep(0.0, 0.045, side), 0.7 * dry);
+	float gap = max(1.0 - smoothstep(0.0, 0.03, side), 0.6 * dry);
 	return vec3(mixed, 0.4 * hairs + 0.45 * ridge + 0.15 * mixed, gap);
 }
 
@@ -66,7 +66,9 @@ vec3 paint_strokes(vec2 uv, float turn, float freedom) {
 // broader strokes laid across them at another angle.
 vec3 paint_layers(vec2 uv, float turn, float freedom) {
 	vec3 under = paint_strokes(uv, turn, freedom);
-	vec3 over = paint_strokes(uv * 0.55 + vec2(13.0, 29.0), turn + 1.05 * freedom, freedom);
+	// The top coat runs nearly the same way as the one beneath. Crossed at a
+	// wide angle the two would read as hatching, not as paint.
+	vec3 over = paint_strokes(uv * 0.55 + vec2(13.0, 29.0), turn + 0.4 * freedom, freedom);
 	float covers = step(0.5, over.x) * (1.0 - over.z);
 	vec3 top = vec3(fract(over.x * 2.0), over.y + 0.35, over.z);
 	return mix(under, top, covers);
