@@ -47,10 +47,30 @@ const THE_CHART := {
 					+ "he says nothing. The ship lies hove to, creaking.",
 			"pose": "reading",
 			"next": "praise",
+			"branches": [
+				{"flag": "chart_fine", "next": "praise_fine"},
+				{"flag": "chart_rough", "next": "praise_rough"},
+			],
+		},
+		"praise_fine": {
+			"who": "Captain Cook",
+			"text": "A fair hand, and a true one. Your headlands are well fixed; I can "
+					+ "see the cuts. Your coast closes and your track is honestly laid down.",
+			"pose": "reading",
+			"next": "ask",
 		},
 		"praise": {
 			"who": "Captain Cook",
-			"text": "A fair hand. Your coast closes, and your track is honestly laid down.",
+			"text": "A fair hand. Your coast closes, and your track is honestly laid down. "
+					+ "Some of these points want a second bearing, mind.",
+			"pose": "reading",
+			"next": "ask",
+		},
+		"praise_rough": {
+			"who": "Captain Cook",
+			"text": "The coast closes, I grant you. But half these headlands are laid down "
+					+ "by eye alone. A bearing costs you a minute. A point misplaced may "
+					+ "cost another ship her keel.",
 			"pose": "reading",
 			"next": "ask",
 		},

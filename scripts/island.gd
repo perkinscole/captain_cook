@@ -9,9 +9,16 @@ const RINGS := 10
 const BASE_RADIUS := 300.0
 const RADIUS_SWING := 110.0
 const PEAK_HEIGHT := 95.0
-const SHOAL_MARGIN := 30.0  ## how far off the beach the keel touches
+const LANDMARK_EVERY := 15  ## one landmark every 15 coast points (30 degrees)
+const LANDMARK_HEIGHT := 30.0
+## Invented names, in the plain descriptive style surveyors used. Clockwise from east.
+const LANDMARK_NAMES: Array[String] = [
+	"East Cape", "Flat Point", "Stack Rock", "South Head", "Sandy Spit", "Table Bluff",
+	"West Cape", "Pillar Point", "Gannet Rock", "North Head", "Saddle Point", "Red Bluff",
+]
 
-var coast := PackedVector2Array()  ## world-space (x, z) coastline points
+var coast := PackedVector2Array()      ## world-space (x, z) coastline points
+var landmarks := PackedVector2Array()  ## world-space (x, z) of each landmark
 var _radii := PackedFloat32Array()
 
 
@@ -69,6 +76,54 @@ func build(noise_seed: int) -> void:
 	inst.mesh = st.commit()
 	inst.material_override = mat
 	add_child(inst)
+	_build_landmarks()
+
+
+func landmark_name(index: int) -> String:
+	return LANDMARK_NAMES[index % LANDMARK_NAMES.size()]
+
+
+## Where to aim at a landmark: a point partway up it, in world space.
+func landmark_aim_point(index: int) -> Vector3:
+	var p := landmarks[index]
+	return Vector3(p.x, LANDMARK_HEIGHT * 0.6, p.y)
+
+
+## Placeholder landmarks: a pale stone pillar with a dark cap on each headland.
+func _build_landmarks() -> void:
+	var stone := StandardMaterial3D.new()
+	stone.albedo_color = Color(0.86, 0.83, 0.74)
+	stone.roughness = 1.0
+	var cap := StandardMaterial3D.new()
+	cap.albedo_color = Color(0.25, 0.10, 0.08)
+	cap.roughness = 1.0
+
+	landmarks.clear()
+	for i in range(0, SAMPLES, LANDMARK_EVERY):
+		var a := TAU * i / SAMPLES
+		var r := _radii[i] - 14.0
+		var local := Vector3(cos(a) * r, 0.0, sin(a) * r)
+		landmarks.append(Vector2(position.x + local.x, position.z + local.z))
+
+		var pillar := MeshInstance3D.new()
+		var shaft := CylinderMesh.new()
+		shaft.top_radius = 3.0
+		shaft.bottom_radius = 5.0
+		shaft.height = LANDMARK_HEIGHT
+		pillar.mesh = shaft
+		pillar.material_override = stone
+		pillar.position = local + Vector3(0.0, LANDMARK_HEIGHT * 0.5, 0.0)
+		add_child(pillar)
+
+		var top := MeshInstance3D.new()
+		var block := CylinderMesh.new()
+		block.top_radius = 3.4
+		block.bottom_radius = 3.4
+		block.height = 4.0
+		top.mesh = block
+		top.material_override = cap
+		top.position = local + Vector3(0.0, LANDMARK_HEIGHT + 2.0, 0.0)
+		add_child(top)
 
 
 ## Distance from the island's centre to the waterline along a world bearing
@@ -78,17 +133,6 @@ func coast_radius(angle: float) -> float:
 	var i := int(f) % SAMPLES
 	var j := (i + 1) % SAMPLES
 	return lerpf(_radii[i], _radii[j], f - floorf(f))
-
-
-## If the given world position is in shoal water, returns the nearest safe
-## position straight out to sea. Otherwise returns the position unchanged.
-func keep_off(world_pos: Vector3) -> Vector3:
-	var offset := Vector2(world_pos.x - position.x, world_pos.z - position.z)
-	var limit := coast_radius(offset.angle()) + SHOAL_MARGIN
-	if offset.length() >= limit:
-		return world_pos
-	var safe := offset.normalized() * (limit + 2.0)
-	return Vector3(position.x + safe.x, world_pos.y, position.z + safe.y)
 
 
 func _land_color(t: float) -> Color:

@@ -2,10 +2,12 @@ extends Node3D
 ## Chart one island, then show the chart to Captain Cook.
 ## Builds the whole scene in code and wires the separate systems together:
 ## Weather -> Wind -> Ship <- ControlMode, Ship + Island -> Charting -> ChartView,
-## and Dialogue -> DialogueBox + Figure for the story scene.
+## Seabed -> LeadLine for soundings, and Dialogue -> DialogueBox + Figure
+## for the story scene.
 
 const OCEAN_SHADER := preload("res://shaders/ocean.gdshader")
-const START_POSITION := Vector3(0.0, 0.0, 900.0)
+const START_POSITION := Vector3(0.0, 0.0, 700.0)
+const AIM_CONE := 0.994  # cosine of how near the middle of the view a landmark must be
 const COOK_POSITION := Vector3(2.6, 3.15, 8.0)  # quarterdeck, starboard side
 const COOK_IDLE_FACING := -0.9                  # looking out over the bow
 
@@ -18,6 +20,8 @@ var wind: Wind
 var weather: Weather
 var ship: Ship
 var island: Island
+var seabed: Seabed
+var lead: LeadLine
 var charting: Charting
 var chart_view: ChartView
 var camera: DeckCamera
@@ -28,6 +32,8 @@ var dialogue: Dialogue
 var dialogue_box: DialogueBox
 var cook: Figure
 var cook_in_view: bool = false
+var landmark_in_view: int = -1
+var groundings: int = 0
 var chart_large: bool = false
 var notice: String = ""
 var notice_time: float = 0.0
@@ -40,6 +46,9 @@ var _sun: DirectionalLight3D
 var _hud: Label
 var _notice_label: Label
 var _prompt_label: Label
+var _lead_gauge: LeadGauge
+var _last_safe := Vector2.ZERO
+var _lookout_quiet: float = 0.0
 
 
 func _ready() -> void:
@@ -58,12 +67,29 @@ func _ready() -> void:
 	add_child(island)
 	island.build(1769)
 
+	seabed = Seabed.new()
+	seabed.island = island
+	add_child(seabed)
+	seabed.build(1770)
+	var reef_uniform := PackedVector3Array()
+	reef_uniform.resize(8)
+	for i in mini(seabed.reefs.size(), 8):
+		reef_uniform[i] = seabed.reefs[i]
+	_ocean_mat.set_shader_parameter("reefs", reef_uniform)
+
 	ship = Ship.new()
 	ship.wind = wind
 	ship.position = START_POSITION
 	add_child(ship)
 	ship.sail_carried_away.connect(_on_sail_carried_away)
 	ship.sail_repaired.connect(_on_sail_repaired)
+	_last_safe = Vector2(START_POSITION.x, START_POSITION.z)
+
+	lead = LeadLine.new()
+	lead.ship = ship
+	lead.seabed = seabed
+	add_child(lead)
+	lead.cast_made.connect(_on_cast_made)
 
 	var visual := ShipVisual.new()
 	visual.ship = ship
@@ -99,19 +125,30 @@ func _ready() -> void:
 	dialogue.finished.connect(_on_dialogue_finished)
 
 	_build_ui()
-	_say("Chart the island ahead. Sail right round it within sight of the shore.", 10.0)
+	_say("Chart the island ahead. Sail right round it, sound as you go, "
+			+ "and take bearings on the stone pillars to fix the coast.", 14.0)
 
 
 func _physics_process(delta: float) -> void:
 	if not dialogue.active:
 		control.steer(ship, delta)
 	ship.sea_state = weather.sea_state
-	charting.sight_range = Charting.CLEAR_SIGHT_RANGE * weather.visibility
+	charting.visibility = weather.visibility
 
-	var safe := island.keep_off(ship.position)
-	if not safe.is_equal_approx(ship.position):
-		ship.run_aground(safe)
-		_say("She touches! Shoal water. Bear away from the shore.", 5.0)
+	var here := Vector2(ship.position.x, ship.position.z)
+	var depth := seabed.depth_at(here)
+	if depth < Seabed.SHIP_DRAUGHT:
+		_run_aground()
+	elif depth > Seabed.SHIP_DRAUGHT + 1.5:
+		_last_safe = here
+
+	# In clear weather the masthead lookout can see pale water ahead.
+	_lookout_quiet -= delta
+	if _lookout_quiet <= 0.0 and weather.visibility > 0.7 and ship.speed > 0.5:
+		var ahead := here + Compass.to_vector(ship.heading_deg) * 110.0
+		if seabed.depth_at(ahead) < Seabed.SHIP_DRAUGHT + 1.0:
+			_lookout_quiet = 10.0
+			_say("Masthead: \"Pale water dead ahead!\"", 5.0)
 
 
 func _process(delta: float) -> void:
@@ -123,7 +160,14 @@ func _process(delta: float) -> void:
 	if dialogue.active:
 		camera.ease_toward(cook.eye_position(), 1.0 - exp(-3.0 * delta))
 	_hud.visible = not dialogue.active
-	_prompt_label.visible = cook_in_view and not dialogue.active
+	landmark_in_view = -1 if cook_in_view else _find_landmark_in_view()
+	_prompt_label.visible = not dialogue.active and (cook_in_view or landmark_in_view >= 0)
+	if cook_in_view:
+		_prompt_label.text = "E  speak with Captain Cook"
+	elif landmark_in_view >= 0:
+		_prompt_label.text = "F  take a bearing on %s" % island.landmark_name(landmark_in_view)
+	_lead_gauge.visible = not dialogue.active
+	chart_view.detailed = chart_large
 
 	var mode := control
 	var lines := PackedStringArray([
@@ -134,12 +178,14 @@ func _process(delta: float) -> void:
 		_point_of_sail(),
 		_sail_line(),
 		_warning_line(),
+		"Hull: %s" % ("sound" if groundings == 0 else "strained (aground %d times)" % groundings),
 		"",
 		"[%s]  %s" % [mode.mode_name(), mode.status(ship)],
 		"",
 		mode.help(),
 		"W / S  make / reduce sail",
-		"M  chart      Mouse  look      E  speak (when looking at someone)      Esc  free mouse",
+		"Space  heave the lead (slow down first)      F  take a bearing on a stone pillar",
+		"M  chart table      Mouse  look      E  speak      Esc  free mouse",
 	])
 	_hud.text = "\n".join(lines)
 
@@ -149,6 +195,7 @@ func _process(delta: float) -> void:
 	var view := get_viewport().get_visible_rect().size
 	var side := minf(view.x, view.y) - 80.0 if chart_large else 280.0
 	chart_view.size = Vector2(side, side)
+	_lead_gauge.position = Vector2(16.0, view.y - 60.0)
 	if chart_large:
 		chart_view.position = (view - chart_view.size) * 0.5
 	else:
@@ -176,6 +223,11 @@ func _sailing_key(key: Key) -> void:
 		KEY_E:
 			if cook_in_view:
 				_speak_with_cook()
+		KEY_F:
+			if landmark_in_view >= 0:
+				_say(charting.take_bearing(landmark_in_view), 7.0)
+		KEY_SPACE:
+			lead.heave()
 		KEY_M:
 			chart_large = not chart_large
 		KEY_W:
@@ -205,6 +257,10 @@ func _speak_with_cook() -> void:
 	if not charting.complete:
 		dialogue.start(CookScenes.ORDERS)
 	elif not story.has_flag("chart_shown"):
+		if charting.accuracy() >= 0.75:
+			story.flags["chart_fine"] = true
+		elif charting.accuracy() < 0.4:
+			story.flags["chart_rough"] = true
 		dialogue.start(CookScenes.THE_CHART)
 	else:
 		dialogue.start(CookScenes.CARRY_ON)
@@ -230,8 +286,39 @@ func _on_dialogue_finished() -> void:
 
 
 func _on_chart_completed() -> void:
-	_say("The survey is complete. Captain Cook is on the quarterdeck, to your right, "
-			+ "and will want to see the chart. Look at him and press E.", 20.0)
+	_say("The coast is all sketched in, with %d of %d landmarks fixed. Fix more for a "
+			% [charting.fixed_count(), charting.mark_error.size()]
+			+ "truer chart, or show it to Captain Cook on the quarterdeck (look at him, press E).",
+			20.0)
+
+
+func _on_cast_made(cry: String) -> void:
+	_say("Leadsman: \"%s\"" % cry, 6.0)
+
+
+func _run_aground() -> void:
+	groundings += 1
+	ship.run_aground(Vector3(_last_safe.x, 0.0, _last_safe.y))
+	ship.heading_deg = Compass.from_vector(seabed.deeper_direction(_last_safe))
+	ship.set_sail(1)
+	control.activate(ship)
+	_say("She strikes! Coral under the keel. It takes the boats and the anchors "
+			+ "to haul her off. Sound before you stand in.", 9.0)
+
+
+func _find_landmark_in_view() -> int:
+	var eye := camera.global_position
+	var looking := -camera.global_transform.basis.z
+	var best := -1
+	var best_dot := AIM_CONE
+	for k in island.landmarks.size():
+		if not charting.can_take_bearing(k):
+			continue
+		var d := (island.landmark_aim_point(k) - eye).normalized().dot(looking)
+		if d > best_dot:
+			best_dot = d
+			best = k
+	return best
 
 
 func _on_weather_changed(state: Weather.State) -> void:
@@ -386,8 +473,13 @@ func _build_ui() -> void:
 	dialogue_box.dialogue = dialogue
 	layer.add_child(dialogue_box)
 
+	_lead_gauge = LeadGauge.new()
+	_lead_gauge.lead = lead
+	layer.add_child(_lead_gauge)
+
 	chart_view = ChartView.new()
 	chart_view.charting = charting
+	chart_view.lead = lead
 	chart_view.ship = ship
 	chart_view.wind = wind
 	chart_view.centre = Vector2(island.position.x, island.position.z)

@@ -5,6 +5,9 @@ shader_type spatial;
 
 uniform float storm : hint_range(0.0, 1.0) = 0.0;  // 0 = fair, 1 = squall
 
+// Coral reefs as (x, z, radius). Shoal water shows paler in good light.
+uniform vec3 reefs[8];
+
 varying vec3 world_pos;
 
 void vertex() {
@@ -18,6 +21,14 @@ void fragment() {
 	vec3 deep = vec3(0.02, 0.10, 0.18);
 	vec3 crest = vec3(0.07, 0.26, 0.33);
 	vec3 sea = mix(deep, crest, smoothstep(-1.0, 1.6, swell + chop + fine * (1.0 + 2.0 * storm)));
+	float shoal = 0.0;
+	for (int i = 0; i < 8; i++) {
+		if (reefs[i].z > 0.0) {
+			float d = distance(world_pos.xz, reefs[i].xy) / reefs[i].z;
+			shoal = max(shoal, 1.0 - smoothstep(0.2, 1.0, d));
+		}
+	}
+	sea = mix(sea, vec3(0.10, 0.40, 0.38), shoal * 0.4);
 	ALBEDO = mix(sea, sea * 0.45 + vec3(0.03, 0.04, 0.045), storm);
 	ROUGHNESS = 0.3;
 	METALLIC = 0.0;

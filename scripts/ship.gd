@@ -18,7 +18,7 @@ const SAIL_NAMES: Array[String] = [
 ## Share of the full sail area each order spreads.
 const SAIL_AREA: Array[float] = [0.0, 0.3, 0.5, 0.78, 1.0]
 
-const HULL_SPEED := 10.0        ## m/s she approaches but never reaches
+const HULL_SPEED := 12.0        ## m/s she approaches but never reaches
 const NO_GO_DEG := 50.0         ## closer to the wind than this, sails only shiver
 const ABACK_DEG := 35.0         ## closer than this, the wind is on the wrong side of them
 const SAFE_LOAD := 12.5         ## wind strength x canvas she can carry safely
@@ -103,7 +103,7 @@ func _physics_process(delta: float) -> void:
 
 	# The hands take time to make or shorten sail. Taking it in is quicker.
 	var wanted_canvas := SAIL_AREA[sail]
-	var rate := 0.07 if wanted_canvas > canvas else 0.12
+	var rate := 0.12 if wanted_canvas > canvas else 0.2
 	canvas = move_toward(canvas, wanted_canvas, rate * delta)
 
 	# Drive from the sails. Aback, the wind pushes her slowly astern.
@@ -111,7 +111,7 @@ func _physics_process(delta: float) -> void:
 	var target := push * polar(a)
 	if trim() == Trim.ABACK:
 		target = -0.18 * push
-	var accel := 0.7
+	var accel := 1.0
 	if target < speed:
 		# She carries her way through the wind's eye, which is what makes
 		# tacking possible. Otherwise she slows fairly quickly.
@@ -123,7 +123,7 @@ func _physics_process(delta: float) -> void:
 
 	# The rudder needs water moving past it, and works backwards with sternway.
 	var steer_sign := -1.0 if has_sternway() else 1.0
-	var turn_rate := rudder * steer_sign * minf(1.0 + 2.2 * absf(speed), 12.0)
+	var turn_rate := rudder * steer_sign * minf(1.5 + 2.6 * absf(speed), 15.0)
 	# Head to wind with sail set, her bow is pushed off the wind.
 	if a < NO_GO_DEG and canvas > 0.02:
 		turn_rate -= signf(rel) * 1.5 * canvas

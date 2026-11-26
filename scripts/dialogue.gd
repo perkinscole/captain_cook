@@ -7,7 +7,9 @@ extends Node
 ## Each node has "who" (empty for narration), "text", and optionally "pose"
 ## (a Figure pose for the speaker), "flag" (set on the story when reached),
 ## and either "next" (id of the following node; leave it out to end) or
-## "choices": a list of { "text", "next", "trust", "flag" }.
+## "choices": a list of { "text", "next", "trust", "flag" }. A node may also
+## have "branches": a list of { "flag", "next" }; the first whose flag is set
+## on the story is followed instead of "next".
 ##
 ## This class knows nothing about how lines are shown or who is posed.
 
@@ -24,6 +26,7 @@ var choices: Array = []
 
 var _nodes: Dictionary = {}
 var _next: String = ""
+var _branches: Array = []
 
 
 func start(scene: Dictionary) -> void:
@@ -34,8 +37,13 @@ func start(scene: Dictionary) -> void:
 
 ## Moves on from a line that has no choices.
 func advance() -> void:
-	if active and choices.is_empty():
-		_show(_next)
+	if not active or not choices.is_empty():
+		return
+	for branch: Dictionary in _branches:
+		if story != null and story.has_flag(branch.get("flag", "")):
+			_show(branch.get("next", ""))
+			return
+	_show(_next)
 
 
 func choose(index: int) -> void:
@@ -62,6 +70,7 @@ func _show(id: String) -> void:
 	pose = node.get("pose", "")
 	choices = node.get("choices", [])
 	_next = node.get("next", "")
+	_branches = node.get("branches", [])
 	var flag: String = node.get("flag", "")
 	if flag != "" and story != null:
 		story.flags[flag] = true

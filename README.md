@@ -24,6 +24,22 @@ On top of that, the sailing now has some depth:
   much sail in a squall and one blows out. In thick weather you must stand
   closer inshore to chart the coast.
 
+And there is work to do while you sail:
+
+- **Reefs and the lead line.** Coral reefs lie hidden off the island. Press
+  Space to heave the lead and learn the depth; let go when the marker is in the
+  green for a true reading. The lead only reaches bottom below about 9 knots,
+  so shorten sail to sound. Soundings are written on the chart in fathoms. In
+  clear weather the masthead lookout may spot pale water dead ahead; in mist or
+  a squall you only have the lead. Strike a reef and she has to be hauled off.
+- **Bearings.** Coast you sail past is only sketched by eye, in pencil, and is
+  a little out of place. Stone pillars mark twelve headlands. Look at one and
+  press F to take a bearing, then take another from further along. Where the
+  two lines cross fixes the headland, and the coast between fixed headlands
+  turns to ink. Lines that cross near a right angle give the best fix.
+- **The chart table.** M opens the full chart, with headland names, sounding
+  figures and an accuracy score.
+
 There is also one story scene, to test telling the story through poses and
 dialogue instead of animation. Captain Cook stands on the quarterdeck, to your
 right. Look at him and press E to speak. Once the survey is complete he asks to
@@ -48,7 +64,9 @@ first prototype also tried holding the wheel directly; giving orders was chosen.
 | --- | --- |
 | A / D | Order the course one compass point to port / starboard |
 | W / S | Make / reduce sail |
-| M | Enlarge or put away the chart |
+| Space | Heave the lead (time it to the green) |
+| F | Take a bearing on the stone pillar you are looking at |
+| M | Open or put away the chart table |
 | E | Speak with the person you are looking at |
 | Space, then 1 to 3 | Continue a conversation, then pick an answer |
 | Mouse | Look around (click to capture the mouse, Esc to free it) |
@@ -68,7 +86,9 @@ Systems are kept separate so each can be swapped:
 | `scripts/ship.gd` | Ship movement from wind, sail and rudder |
 | `scripts/control_mode.gd`, `orders_mode.gd` | How the ship is steered (giving orders) |
 | `scripts/island.gd` | Procedural island and its coastline |
-| `scripts/charting.gd` | Which coast has been surveyed, and the ship's track |
+| `scripts/seabed.gd` | Water depth and hidden reefs |
+| `scripts/lead_line.gd`, `lead_gauge.gd` | Heaving the lead, and the timing gauge |
+| `scripts/charting.gd` | Coast sketched, bearings and fixes, accuracy, the ship's track |
 | `scripts/chart_view.gd` | Drawing the chart |
 | `scripts/ship_visual.gd`, `deck_camera.gd` | Placeholder ship and first-person view |
 | `scripts/dialogue.gd`, `dialogue_box.gd` | Running a conversation, and showing it |
