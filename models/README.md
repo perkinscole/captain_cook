@@ -15,6 +15,8 @@ missing (see `scripts/models.gd`).
 | `characters/officer/` | Mr Clerke, standing on the quarterdeck |
 | `characters/marine/` | The sentry pacing the quarterdeck |
 | `characters/banks/` | Mr Banks, in the great cabin |
+| `characters/tupaia/` | Tupaia, ashore at Matavai and then aboard |
+| `characters/islander/` | The people on the beach at Matavai Bay |
 | `ship/hull_fitted.glb` | The hull: planked sides, the inside of the bulwarks and the deck planking. Made from `source/hull.glb` by `tools/fit_hull.py`, which reshapes the model to the ship's plan in `scripts/ship_layout.gd`; run it again if that plan changes. |
 | `ship/wheel.glb`, `capstan.glb`, `windlass.glb`, `anchor.glb`, `lantern.glb` | Deck fittings |
 | `ship/boat_light.glb` | The longboat and the pinnace, stowed over the waist. About 28,000 triangles. |

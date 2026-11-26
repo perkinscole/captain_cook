@@ -12,6 +12,7 @@ const OFFICER := "res://models/characters/officer/officer_actions.glb"
 const MARINE := "res://models/characters/marine/marine_actions.glb"
 const BANKS := "res://models/characters/banks/banks_actions.glb"
 const TUPAIA := "res://models/characters/tupaia/tupaia_actions.glb"
+const ISLANDER := "res://models/characters/islander/islander_actions.glb"
 
 const HULL := "res://models/ship/hull_fitted.glb"
 const WHEEL := "res://models/ship/wheel.glb"

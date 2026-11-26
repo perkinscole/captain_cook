@@ -62,6 +62,23 @@ func build(coast_angle: float) -> void:
 	pascoe.position = _on_sand(Vector3(2.2, 0.0, -3.0))
 	figures["pascoe"] = pascoe
 
+	# People of the bay, come down to the canoes to see the strangers.
+	var folk: Array[Vector4] = [   # x, z, which way they face, 1 if talking
+		Vector4(-7.2, -6.4, 2.2, 1.0), Vector4(-8.3, -7.3, -0.9, 1.0),
+		Vector4(-11.0, -3.6, 2.6, 0.0), Vector4(-14.6, -6.6, 2.0, 0.0),
+		Vector4(6.5, -7.5, -2.3, 0.0),
+	]
+	for who in folk:
+		var islander := Figure.new()
+		Landfall.dress_as_tupaia(islander)
+		islander.model_path = Models.ISLANDER
+		islander.model_tint = Color(1.0, 1.0, 1.0).lerp(Color(0.86, 0.80, 0.72), randf())
+		islander.idle_facing = who.z
+		if who.w > 0.5:
+			islander.idle_clip = "talk"
+		_set.add_child(islander)
+		islander.position = _on_sand(Vector3(who.x, 0.0, who.y))
+
 	# Placeholder canoes drawn up on the sand: a hull, an outrigger float.
 	var wood := Paint.material(Color(0.36, 0.24, 0.14))
 	for i in 4:
