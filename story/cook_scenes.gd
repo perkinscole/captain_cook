@@ -14,7 +14,9 @@ const ORDERS := {
 		"orders": {
 			"who": "Captain Cook",
 			"text": "You have your orders. Take her right round the island and lay down "
-					+ "every yard of coast you can see. Bring me the chart when it is done.",
+					+ "every yard of coast you can see. Bring me the chart when it is done. "
+					+ "When the people want fresh food, anchor in Matavai Bay, under "
+					+ "Point Venus on the north side.",
 		},
 	},
 }

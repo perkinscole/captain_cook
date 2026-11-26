@@ -11,15 +11,18 @@ const RADIUS_SWING := 110.0
 const PEAK_HEIGHT := 95.0
 const LANDMARK_EVERY := 15  ## one landmark every 15 coast points (30 degrees)
 const LANDMARK_HEIGHT := 30.0
-## Invented names, in the plain descriptive style surveyors used. Clockwise from east.
+## The island is a stand-in for Tahiti: the shape is made up, not the real
+## coastline. Point Venus is real (the north point, beside Matavai Bay). The
+## other names are invented in the plain style surveyors used. Clockwise from east.
 const LANDMARK_NAMES: Array[String] = [
 	"East Cape", "Flat Point", "Stack Rock", "South Head", "Sandy Spit", "Table Bluff",
-	"West Cape", "Pillar Point", "Gannet Rock", "North Head", "Saddle Point", "Red Bluff",
+	"West Cape", "Pillar Point", "Gannet Rock", "Point Venus", "Saddle Point", "Red Bluff",
 ]
 
 var coast := PackedVector2Array()      ## world-space (x, z) coastline points
 var landmarks := PackedVector2Array()  ## world-space (x, z) of each landmark
 var _radii := PackedFloat32Array()
+var _heights := PackedFloat32Array()  # height of every mesh vertex, ring by ring
 
 
 func build(noise_seed: int) -> void:
@@ -29,6 +32,7 @@ func build(noise_seed: int) -> void:
 
 	coast.resize(SAMPLES)
 	_radii.resize(SAMPLES)
+	_heights.resize((RINGS + 1) * SAMPLES)
 	for i in SAMPLES:
 		var a := TAU * i / SAMPLES
 		var r := BASE_RADIUS + RADIUS_SWING * noise.get_noise_2d(cos(a) * 130.0, sin(a) * 130.0)
@@ -51,6 +55,7 @@ func build(noise_seed: int) -> void:
 			else:
 				h = -(t - 1.0) * 60.0
 			st.set_color(_land_color(t))
+			_heights[ring * SAMPLES + i] = h
 			st.add_vertex(Vector3(x, h, z))
 	for ring in RINGS:
 		for i in SAMPLES:
@@ -124,6 +129,22 @@ func _build_landmarks() -> void:
 		top.material_override = cap
 		top.position = local + Vector3(0.0, LANDMARK_HEIGHT + 2.0, 0.0)
 		add_child(top)
+
+
+## Height of the ground (metres above the sea) at a world (x, z) position.
+func surface_height(world: Vector2) -> float:
+	var offset := world - Vector2(position.x, position.z)
+	var angle := wrapf(offset.angle(), 0.0, TAU)
+	var t := offset.length() / coast_radius(angle)
+	var ring_f := clampf(t / 1.25 * RINGS, 0.0, RINGS - 0.001)
+	var ring := int(ring_f)
+	var f := angle / TAU * SAMPLES
+	var i := int(f) % SAMPLES
+	var j := (i + 1) % SAMPLES
+	var inner := lerpf(_heights[ring * SAMPLES + i], _heights[ring * SAMPLES + j], f - floorf(f))
+	var outer := lerpf(_heights[(ring + 1) * SAMPLES + i], _heights[(ring + 1) * SAMPLES + j],
+			f - floorf(f))
+	return lerpf(inner, outer, ring_f - ring)
 
 
 ## Distance from the island's centre to the waterline along a world bearing

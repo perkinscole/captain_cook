@@ -33,6 +33,7 @@ const EYE_HEIGHT := 1.62
 ## Set these before adding the figure to the scene.
 var coat_color := Color(0.09, 0.12, 0.25)
 var legs_color := Color(0.85, 0.82, 0.72)
+var skin_color := Color(0.80, 0.62, 0.50)
 var wears_hat: bool = true
 var idle_facing: float = 0.0  ## yaw (radians) when nobody is speaking to them
 
@@ -48,7 +49,7 @@ var _time: float = 0.0
 func _ready() -> void:
 	var coat := _material(coat_color)
 	var breeches := _material(legs_color)
-	var skin := _material(Color(0.80, 0.62, 0.50))
+	var skin := _material(skin_color)
 	var black := _material(Color(0.05, 0.05, 0.06))
 	var paper := _material(Color(0.91, 0.85, 0.70))
 

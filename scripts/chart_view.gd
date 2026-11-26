@@ -22,6 +22,8 @@ var ship: Ship
 var wind: Wind
 var dot_guesses: bool = false  ## draw guessed coast as dots, not a firm line
 var detailed: bool = false     ## the chart-table view: names and sounding figures
+var anchorage := Vector2.ZERO  ## world (x, z) of a known anchorage, if any
+var anchorage_name: String = ""
 var centre := Vector2.ZERO     ## world (x, z) at the middle of the sheet
 
 
@@ -59,6 +61,15 @@ func _draw() -> void:
 	_draw_coast()
 	_draw_landmarks(font)
 	_draw_soundings(font)
+	if anchorage_name != "":
+		# The usual chart sign for an anchorage is a small anchor; a ringed
+		# cross stands in for it here.
+		var mark := _to_sheet(anchorage)
+		draw_arc(mark, 5.0, 0.0, TAU, 16, TRACK, 1.5)
+		draw_line(mark - Vector2(0.0, 5.0), mark + Vector2(0.0, 5.0), TRACK, 1.5)
+		draw_line(mark - Vector2(5.0, 0.0), mark + Vector2(5.0, 0.0), TRACK, 1.5)
+		draw_string(font, mark + Vector2(8.0, 4.0), anchorage_name,
+				HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, TRACK)
 
 	# The ship: a small arrowhead pointing along her heading.
 	var at := _to_sheet(Vector2(ship.position.x, ship.position.z))

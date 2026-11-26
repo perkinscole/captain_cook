@@ -30,6 +30,15 @@ func build(reef_seed: int) -> void:
 		_tops.append(rng.randf_range(1.0, 2.5))
 
 
+## Removes any reef that would foul a stretch of water, e.g. an anchorage.
+func clear_around(p: Vector2, radius: float) -> void:
+	for i in range(reefs.size() - 1, -1, -1):
+		var reef := reefs[i]
+		if p.distance_to(Vector2(reef.x, reef.y)) < radius + reef.z:
+			reefs.remove_at(i)
+			_tops.remove_at(i)
+
+
 ## Depth of water in metres at a world (x, z) position. 0 on dry land.
 func depth_at(p: Vector2) -> float:
 	var offset := p - Vector2(island.position.x, island.position.z)

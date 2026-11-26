@@ -3,10 +3,12 @@ extends Node3D
 ## Builds the whole scene in code and wires the separate systems together:
 ## Weather -> Wind -> Ship <- ControlMode, Ship + Island -> Charting -> ChartView,
 ## Seabed -> LeadLine for soundings, Supplies -> Crew -> how well each job is
-## done, and Dialogue -> DialogueBox + Figure for talk.
+## done, Dialogue -> DialogueBox + Figure for talk, and Landfall for the
+## anchorage and the scene ashore.
 
 const OCEAN_SHADER := preload("res://shaders/ocean.gdshader")
 const START_POSITION := Vector3(0.0, 0.0, 700.0)
+const MATAVAI_ANGLE := -1.74  # where the bay lies: on the north side, just west of Point Venus
 const AIM_CONE := 0.994  # cosine of how near the middle of the view a landmark must be
 const COOK_POSITION := Vector3(2.6, 3.15, 8.0)  # quarterdeck, starboard side
 const COOK_IDLE_FACING := -0.9                  # looking out over the bow
@@ -25,6 +27,7 @@ var lead: LeadLine
 var supplies: Supplies
 var crew: Crew
 var charting: Charting
+var landfall: Landfall
 var chart_view: ChartView
 var camera: DeckCamera
 
@@ -55,6 +58,10 @@ var _last_safe := Vector2.ZERO
 var _lookout_quiet: float = 0.0
 var _aground_lately: float = 0.0
 var _speaker: Figure
+var _scene: String = ""  # which kind of conversation is running
+var _cast: Dictionary = {}  # speaker id -> Figure
+var _tupaia_aboard: Figure
+var _told_of_bay: bool = false
 var _hand_figures: Dictionary = {}  # Hand -> Figure
 var _crew_label: Label
 
@@ -79,11 +86,6 @@ func _ready() -> void:
 	seabed.island = island
 	add_child(seabed)
 	seabed.build(1770)
-	var reef_uniform := PackedVector3Array()
-	reef_uniform.resize(8)
-	for i in mini(seabed.reefs.size(), 8):
-		reef_uniform[i] = seabed.reefs[i]
-	_ocean_mat.set_shader_parameter("reefs", reef_uniform)
 
 	ship = Ship.new()
 	ship.wind = wind
@@ -92,6 +94,17 @@ func _ready() -> void:
 	ship.sail_carried_away.connect(_on_sail_carried_away)
 	ship.sail_repaired.connect(_on_sail_repaired)
 	_last_safe = Vector2(START_POSITION.x, START_POSITION.z)
+
+	landfall = Landfall.new()
+	landfall.island = island
+	add_child(landfall)
+	landfall.build(MATAVAI_ANGLE)
+	seabed.clear_around(landfall.anchorage, Landfall.ANCHOR_RADIUS + 60.0)
+	var reef_uniform := PackedVector3Array()
+	reef_uniform.resize(8)
+	for i in mini(seabed.reefs.size(), 8):
+		reef_uniform[i] = seabed.reefs[i]
+	_ocean_mat.set_shader_parameter("reefs", reef_uniform)
 
 	lead = LeadLine.new()
 	lead.ship = ship
@@ -109,6 +122,7 @@ func _ready() -> void:
 	camera.far = 6000.0
 	ship.add_child(camera)
 	camera.make_current()
+	landfall.deck_camera = camera
 
 	charting = Charting.new()
 	charting.ship = ship
@@ -125,6 +139,14 @@ func _ready() -> void:
 	cook.position = COOK_POSITION
 	cook.idle_facing = COOK_IDLE_FACING
 	ship.add_child(cook)
+
+	_tupaia_aboard = Figure.new()
+	Landfall.dress_as_tupaia(_tupaia_aboard)
+	_tupaia_aboard.position = COOK_POSITION + Vector3(-2.2, 0.0, 0.6)
+	_tupaia_aboard.visible = false
+	ship.add_child(_tupaia_aboard)
+	_cast = {"cook": cook, "tupaia_deck": _tupaia_aboard}
+	_cast.merge(landfall.figures)
 
 	supplies = Supplies.new()
 	add_child(supplies)
@@ -185,12 +207,20 @@ func _process(delta: float) -> void:
 	cook_in_view = to_cook.dot(-camera.global_transform.basis.z) > 0.93
 	hand_in_view = null if cook_in_view else _find_hand_in_view()
 	if dialogue.active and _speaker != null:
-		camera.ease_toward(_speaker.eye_position(), 1.0 - exp(-3.0 * delta))
+		landfall.active_camera().ease_toward(_speaker.eye_position(), 1.0 - exp(-3.0 * delta))
 	_hud.visible = not dialogue.active
 	var someone := cook_in_view or hand_in_view != null
+	var may_anchor := not story.has_flag("landfall_done") and landfall.can_anchor(ship)
+	if not _told_of_bay and not story.has_flag("landfall_done") and landfall.is_near(ship):
+		_told_of_bay = true
+		_say("This is Matavai Bay. To anchor, bring her nearly to a stop "
+				+ "(under 5 knots) and press Enter.", 10.0)
 	landmark_in_view = -1 if someone else _find_landmark_in_view()
-	_prompt_label.visible = not dialogue.active and (someone or landmark_in_view >= 0)
-	if cook_in_view:
+	_prompt_label.visible = not dialogue.active \
+			and (someone or landmark_in_view >= 0 or may_anchor)
+	if may_anchor:
+		_prompt_label.text = "Enter  anchor in %s" % landfall.anchorage_name
+	elif cook_in_view:
 		_prompt_label.text = "E  speak with Captain Cook"
 	elif hand_in_view != null:
 		_prompt_label.text = "E  speak with %s" % hand_in_view.full_name
@@ -261,6 +291,9 @@ func _sailing_key(key: Key) -> void:
 				_speak_with_cook()
 			elif hand_in_view != null:
 				_speak_with_hand(hand_in_view)
+		KEY_ENTER:
+			if not story.has_flag("landfall_done") and landfall.can_anchor(ship):
+				_anchor_at_matavai()
 		KEY_C:
 			crew_panel_open = not crew_panel_open
 		KEY_R:
@@ -307,7 +340,40 @@ func _dialogue_key(key: Key) -> void:
 		dialogue.choose(key - KEY_1)
 
 
+func _anchor_at_matavai() -> void:
+	_scene = "landfall"
+	chart_large = false
+	ship.hove_to = true
+	ship.set_sail(0)
+	_speaker = null
+	_tupaia_aboard.visible = true
+	dialogue.start(TahitiScenes.LANDFALL)
+
+
+func _finish_landfall() -> void:
+	story.flags["landfall_done"] = true
+	landfall.set_stage("deck")
+	_tupaia_aboard.visible = false
+	ship.set_sail(1)
+	control.activate(ship)
+
+	# What came of it. Good relations fill the boat; a quarrel empties it.
+	var goodwill: int = story.relations.get("tahiti", 0)
+	var barter_bonus := 1.0 if story.has_flag("open_barter") else 0.0
+	supplies.greens = clampf(3.0 + goodwill, 1.0, 7.0)
+	supplies.provisions += clampf(2.0 + 0.5 * goodwill + barter_bonus, 0.5, 5.0)
+	crew.cheer(6.0 + goodwill)
+	var outcome := "The boat comes back well laden."
+	if goodwill >= 3:
+		outcome = "The boat comes back loaded to the gunwales, and with an invitation."
+	elif goodwill < 0:
+		outcome = "The boat comes back half empty. Nobody ashore will trade."
+	_say("%s Fresh food for %d days. The anchor is weighed." % [
+		outcome, roundi(supplies.greens)], 12.0)
+
+
 func _speak_with_hand(h: Hand) -> void:
+	_scene = "hand"
 	_speaker = _hand_figures[h]
 	_speaker.facing = camera.yaw_to_face_me(_speaker.position)
 	crew.noticed(h)
@@ -321,6 +387,7 @@ func _speak_with_hand(h: Hand) -> void:
 func _speak_with_cook() -> void:
 	chart_large = false
 	ship.hove_to = true
+	_scene = "cook"
 	_speaker = cook
 	cook.facing = camera.yaw_to_face_me(cook.position)
 	if not charting.complete:
@@ -337,16 +404,31 @@ func _speak_with_cook() -> void:
 
 func _on_dialogue_line() -> void:
 	dialogue_box.refresh()
-	if _speaker != null:
+	var node := dialogue.current
+	if node.has("stage") and node["stage"] != landfall.stage:
+		landfall.set_stage(node["stage"])
+		_speaker = null  # nobody to look at until someone here speaks
+	if node.has("speaker") and _cast.has(node["speaker"]):
+		var next_speaker: Figure = _cast[node["speaker"]]
+		if next_speaker != _speaker:
+			_speaker = next_speaker
+			_speaker.facing = landfall.active_camera().yaw_to_face_me(_speaker.position)
+	if _speaker != null and dialogue.who != "":
 		_speaker.set_pose(dialogue.pose)
 
 
 func _on_dialogue_finished() -> void:
 	ship.hove_to = false
+	for id: String in _cast:
+		var figure: Figure = _cast[id]
+		figure.facing = figure.idle_facing
+		figure.set_pose("at_ease")
 	if _speaker != null:
 		_speaker.facing = _speaker.idle_facing
 		_speaker.set_pose("at_ease")
-	if _speaker != cook:
+	if _scene == "landfall":
+		_finish_landfall()
+	if _scene != "cook":
 		return
 	chart_view.dot_guesses = story.has_flag("chart_dotted")
 	if story.has_flag("chart_shown") and not story.has_flag("chart_scene_done"):
@@ -609,6 +691,8 @@ func _build_ui() -> void:
 	chart_view.ship = ship
 	chart_view.wind = wind
 	chart_view.centre = Vector2(island.position.x, island.position.z)
+	chart_view.anchorage = landfall.anchorage
+	chart_view.anchorage_name = landfall.anchorage_name
 	layer.add_child(chart_view)
 
 

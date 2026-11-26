@@ -7,7 +7,8 @@ extends Node
 ## Each node has "who" (empty for narration), "text", and optionally "pose"
 ## (a Figure pose for the speaker), "flag" (set on the story when reached),
 ## and either "next" (id of the following node; leave it out to end) or
-## "choices": a list of { "text", "next", "trust", "flag" }. A node may also
+## "choices": a list of { "text", "next", "trust", "flag", "relations",
+## "regard" }, where the last two are { name: amount } tallies. A node may also
 ## have "branches": a list of { "flag", "next" }; the first whose flag is set
 ## on the story is followed instead of "next".
 ##
@@ -23,6 +24,7 @@ var who: String = ""
 var text: String = ""
 var pose: String = ""
 var choices: Array = []
+var current: Dictionary = {}  ## the whole node being shown, for any extra keys
 
 var _nodes: Dictionary = {}
 var _next: String = ""
@@ -55,6 +57,8 @@ func choose(index: int) -> void:
 		var flag: String = choice.get("flag", "")
 		if flag != "":
 			story.flags[flag] = true
+		StoryState.add_to(story.relations, choice.get("relations", {}))
+		StoryState.add_to(story.regard, choice.get("regard", {}))
 	_show(choice.get("next", ""))
 
 
@@ -65,6 +69,7 @@ func _show(id: String) -> void:
 		finished.emit()
 		return
 	var node: Dictionary = _nodes[id]
+	current = node
 	who = node.get("who", "")
 	text = node.get("text", "")
 	pose = node.get("pose", "")

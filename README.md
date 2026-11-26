@@ -56,6 +56,16 @@ The ship now has a crew and stores:
 - **So time matters.** Staying out to fix every headland makes a truer chart
   and a sicker, sourer crew.
 
+And there is a landfall. The island is a stand-in for Tahiti in 1769 (the
+shape is made up; only Point Venus and Matavai Bay are real names). Matavai
+Bay is marked on the chart on the north side. Bring the ship nearly to a stop
+there and press Enter to anchor. Cook sends you ashore to trade for fresh food,
+and Tupaia, a navigator and priest from Ra'iatea, goes with you. Two choices on
+the beach decide how much food comes back, how the people ashore regard the
+ship, what Tupaia makes of you, and what Cook says afterwards. The scene is
+invented and its historical grounding is listed, for checking, at the top of
+`story/tahiti_scenes.gd`.
+
 There is also one story scene, to test telling the story through poses and
 dialogue instead of animation. Captain Cook stands on the quarterdeck, to your
 right. Look at him and press E to speak. Once the survey is complete he asks to
@@ -83,6 +93,7 @@ first prototype also tried holding the wheel directly; giving orders was chosen.
 | Space | Heave the lead (time it to the green) |
 | F | Take a bearing on the stone pillar you are looking at |
 | M | Open or put away the chart table |
+| Enter | Anchor, when nearly stopped in Matavai Bay |
 | C | Show or hide the crew and stores list |
 | R | Change rations (full, two-thirds, half) |
 | K | Serve sour krout, or stop |
@@ -114,6 +125,8 @@ Systems are kept separate so each can be swapped:
 | `scripts/supplies.gd` | Stores, rations and the passing of days |
 | `scripts/crew.gd`, `hand.gd` | The named hands, their health and morale, and how well each job is done |
 | `story/crew_lines.gd` | What each hand says, as data |
+| `scripts/landfall.gd` | The anchorage, the set on the beach, and switching between deck and shore |
+| `story/tahiti_scenes.gd` | The landfall at Matavai Bay, as data |
 | `scripts/dialogue.gd`, `dialogue_box.gd` | Running a conversation, and showing it |
 | `scripts/figure.gd` | Placeholder posed character |
 | `scripts/story_state.gd` | What the story remembers (Cook's trust, flags) |
