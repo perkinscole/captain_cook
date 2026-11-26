@@ -10,7 +10,7 @@ shader_type canvas_item;
 // The second pass (impasto.gdshader) then gives the paint thickness.
 
 uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linear;
-uniform float brush = 7.0;        // size of a dab, in pixels on a 720-line screen
+uniform float brush = 3.0;        // size of a dab, in pixels on a 720-line screen
 uniform float crispness = 4.0;    // how strongly calm wedges win over busy ones
 
 void fragment() {

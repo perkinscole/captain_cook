@@ -198,11 +198,8 @@ func _joint(parent: Node3D, part: String, pos: Vector3) -> Node3D:
 	return joint
 
 
-func _material(color: Color) -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.roughness = 0.9
-	return mat
+func _material(color: Color) -> ShaderMaterial:
+	return Paint.material(color, 0.1)   # small strokes: people are small
 
 
 func _capsule(parent: Node3D, radius: float, height: float, pos: Vector3,

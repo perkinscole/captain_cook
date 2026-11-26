@@ -61,9 +61,7 @@ func build(coast_angle: float) -> void:
 	figures["pascoe"] = pascoe
 
 	# Placeholder canoes drawn up on the sand: a hull, an outrigger float.
-	var wood := StandardMaterial3D.new()
-	wood.albedo_color = Color(0.36, 0.24, 0.14)
-	wood.roughness = 1.0
+	var wood := Paint.material(Color(0.36, 0.24, 0.14))
 	for i in 4:
 		var canoe := Node3D.new()
 		_set.add_child(canoe)

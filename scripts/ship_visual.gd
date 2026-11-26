@@ -48,15 +48,15 @@ var _time: float = 0.0
 var _fill: float = 1.0
 var _rig: SurfaceTool
 
-var _wood: StandardMaterial3D
-var _dark: StandardMaterial3D
-var _ochre: StandardMaterial3D
-var _red: StandardMaterial3D
-var _cream: StandardMaterial3D
-var _iron: StandardMaterial3D
-var _brass: StandardMaterial3D
-var _rope: StandardMaterial3D
-var _canvas: StandardMaterial3D
+var _wood: ShaderMaterial
+var _dark: ShaderMaterial
+var _ochre: ShaderMaterial
+var _red: ShaderMaterial
+var _cream: ShaderMaterial
+var _iron: ShaderMaterial
+var _brass: ShaderMaterial
+var _rope: ShaderMaterial
+var _canvas: ShaderMaterial
 var _planks: ShaderMaterial
 
 
@@ -67,13 +67,13 @@ func _ready() -> void:
 	_red = _material(Color(0.48, 0.14, 0.10))
 	_cream = _material(Color(0.80, 0.76, 0.62))
 	_iron = _material(Color(0.07, 0.07, 0.08))
-	_iron.roughness = 0.6
+	_iron.set_shader_parameter("roughness", 0.45)
 	_brass = _material(Color(0.75, 0.58, 0.22))
-	_brass.metallic = 0.7
-	_brass.roughness = 0.4
+	_brass.set_shader_parameter("metallic", 0.7)
+	_brass.set_shader_parameter("roughness", 0.35)
 	_rope = _material(Color(0.17, 0.13, 0.09))
 	_canvas = _material(Color(1.0, 1.0, 1.0))
-	_canvas.vertex_color_use_as_albedo = true
+	_canvas.set_shader_parameter("stroke", 0.5)   # broad strokes for the sails
 	_planks = ShaderMaterial.new()
 	_planks.shader = DECK_SHADER
 
@@ -163,7 +163,6 @@ func _build_hull() -> void:
 			_quad(st, p, p + SECTION_POINTS, p + SECTION_POINTS + 1, p + 1)
 	st.generate_normals()
 	var skin := _material(Color(1.0, 1.0, 1.0))
-	skin.vertex_color_use_as_albedo = true
 	_add(self, st.commit(), Vector3.ZERO, skin)
 
 	# Inside of the bulwarks (painted red, as was the custom) and the rail
@@ -877,12 +876,8 @@ func _quad(st: SurfaceTool, a: int, b: int, c: int, d: int) -> void:
 	st.add_index(d)
 
 
-func _material(color: Color) -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.roughness = 0.9
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	return mat
+func _material(color: Color) -> ShaderMaterial:
+	return Paint.material(color)
 
 
 func _add(parent: Node3D, mesh: Mesh, pos: Vector3, mat: Material) -> MeshInstance3D:

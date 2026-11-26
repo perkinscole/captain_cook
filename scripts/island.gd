@@ -33,8 +33,8 @@ var landmarks := PackedVector2Array()  ## world-space (x, z) of each landmark
 var keep_clear_angle: float = INF
 
 var _landmark_tops := PackedFloat32Array()
-var _bark: StandardMaterial3D
-var _fronds: StandardMaterial3D
+var _bark: ShaderMaterial
+var _fronds: ShaderMaterial
 var _radii := PackedFloat32Array()
 var _heights := PackedFloat32Array()  # height of every mesh vertex, ring by ring
 
@@ -88,22 +88,14 @@ func build(noise_seed: int) -> void:
 			st.add_index(inner_j)
 	st.generate_normals()
 
-	var mat := StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true
-	mat.roughness = 1.0
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var mat := Paint.material(Color(1.0, 1.0, 1.0), 0.6, 0.85)
 
 	var inst := MeshInstance3D.new()
 	inst.mesh = st.commit()
 	inst.material_override = mat
 	add_child(inst)
-	_bark = StandardMaterial3D.new()
-	_bark.albedo_color = Color(0.40, 0.31, 0.22)
-	_bark.roughness = 1.0
-	_fronds = StandardMaterial3D.new()
-	_fronds.albedo_color = Color(0.14, 0.32, 0.12)
-	_fronds.roughness = 1.0
-	_fronds.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_bark = Paint.material(Color(0.40, 0.31, 0.22), 0.3, 0.85)
+	_fronds = Paint.material(Color(0.14, 0.32, 0.12), 0.3, 0.8)
 	_build_landmarks()
 	_build_palms(noise_seed)
 	_build_forest(noise_seed)
@@ -154,9 +146,7 @@ func _build_landmarks() -> void:
 
 ## A pile of rough boulders. Returns how high it stands above the sea.
 func _rock_stack(at: Vector3, rng: RandomNumberGenerator, colour: Color, height: float) -> float:
-	var stone := StandardMaterial3D.new()
-	stone.albedo_color = colour
-	stone.roughness = 1.0
+	var stone := Paint.material(colour, 0.3, 0.8)
 	for n in 4:
 		var inst := MeshInstance3D.new()
 		var ball := SphereMesh.new()
@@ -179,9 +169,7 @@ func _rock_stack(at: Vector3, rng: RandomNumberGenerator, colour: Color, height:
 
 ## A broken cliff face on the shore. Returns the height of its top.
 func _bluff(at: Vector3, angle: float, rng: RandomNumberGenerator, colour: Color) -> float:
-	var stone := StandardMaterial3D.new()
-	stone.albedo_color = colour
-	stone.roughness = 1.0
+	var stone := Paint.material(colour, 0.6, 0.8)
 	var height := rng.randf_range(14.0, 20.0)
 	for n in 3:
 		var inst := MeshInstance3D.new()
@@ -248,9 +236,7 @@ func _build_forest(forest_seed: int) -> void:
 	crown.height = 1.7
 	crown.radial_segments = 6
 	crown.rings = 3
-	var leaves := StandardMaterial3D.new()
-	leaves.vertex_color_use_as_albedo = true
-	leaves.roughness = 1.0
+	var leaves := Paint.material(Color(1.0, 1.0, 1.0), 0.4, 0.8)
 	crown.material = leaves
 
 	var batch := MultiMesh.new()
