@@ -29,8 +29,8 @@ void fragment() {
 	float butt = 1.0 - smoothstep(0.006, 0.02, min(butt_at, 1.0 - butt_at) * 5.0);
 
 	float screen_px = 70.0 * VIEWPORT_SIZE.y / 720.0;
-	vec3 paint = paint_on(local_pos, normalize(local_normal), 0.3, screen_px);
-	vec3 colour = paint_colour(wood * tone, paint, 0.1);
+	vec4 paint = paint_on(local_pos, normalize(local_normal), 0.3, screen_px);
+	vec3 colour = paint_colour(wood * tone, paint, 0.15, local_pos);
 	ALBEDO = colour * (1.0 - 0.75 * max(seam, butt));
 	NORMAL = paint_relief(normalize(NORMAL), VERTEX, paint, 0.8);
 	ROUGHNESS = 0.7;

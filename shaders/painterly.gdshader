@@ -11,7 +11,7 @@ shader_type canvas_item;
 
 uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linear;
 uniform float brush = 3.0;        // size of a dab, in pixels on a 720-line screen
-uniform float crispness = 4.0;    // how strongly calm wedges win over busy ones
+uniform float crispness = 2.0;    // how strongly calm wedges win over busy ones
 
 void fragment() {
 	vec2 px = SCREEN_PIXEL_SIZE;

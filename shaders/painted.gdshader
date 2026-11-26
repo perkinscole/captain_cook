@@ -7,8 +7,8 @@ render_mode cull_disabled;
 
 uniform vec3 tint : source_color = vec3(1.0);
 uniform float stroke = 0.3;                              // length of a stroke up close
-uniform float variation : hint_range(0.0, 0.5) = 0.12;   // how much each stroke's colour differs
-uniform float relief : hint_range(0.0, 2.0) = 1.0;       // how thick the paint stands
+uniform float variation : hint_range(0.0, 0.5) = 0.17;   // how much each stroke's colour differs
+uniform float relief : hint_range(0.0, 2.0) = 1.25;      // how thick the paint stands
 uniform float roughness : hint_range(0.0, 1.0) = 0.6;    // oil paint has a soft shine
 uniform float metallic : hint_range(0.0, 1.0) = 0.0;
 
@@ -22,8 +22,8 @@ void vertex() {
 
 void fragment() {
 	float screen_px = 70.0 * VIEWPORT_SIZE.y / 720.0;
-	vec3 paint = paint_on(object_pos, normalize(object_normal), stroke, screen_px);
-	ALBEDO = paint_colour(tint * COLOR.rgb, paint, variation);
+	vec4 paint = paint_on(object_pos, normalize(object_normal), stroke, screen_px);
+	ALBEDO = paint_colour(tint * COLOR.rgb, paint, variation, object_pos);
 	NORMAL = paint_relief(normalize(NORMAL), VERTEX, paint, relief);
 	ROUGHNESS = roughness;
 	METALLIC = metallic;

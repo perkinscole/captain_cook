@@ -58,7 +58,12 @@ func _ready() -> void:
 
 	_sun = DirectionalLight3D.new()
 	_sun.shadow_enabled = true
-	_sun.directional_shadow_max_distance = 250.0
+	# Shadows are kept close to the ship so that they are finely drawn, and
+	# given a soft edge like the sun's own, which hides any stepping.
+	_sun.directional_shadow_max_distance = 110.0
+	_sun.light_angular_distance = 0.8
+	_sun.shadow_blur = 1.5
+	_sun.rotation_degrees = Vector3(-27.0, -125.0, 0.0)
 	_sun.light_volumetric_fog_energy = 1.6
 	add_child(_sun)
 	apply(0.0, 1.0, 90.0, 0.0, 0.0)
@@ -73,10 +78,10 @@ func apply(gloom: float, visibility: float, wind_from: float, day_part: float,
 		delta: float) -> void:
 	_cloud_time += delta * (1.0 + 2.0 * gloom)
 
-	# The sun swings between low and fairly high, never setting. Low is warmer.
+	# The sun itself stays where it is: a sun that creeps across the sky
+	# makes every shadow on deck crawl. Only its colour changes through the
+	# day, warmer and cooler by turns.
 	var height := 0.5 + 0.5 * sin(TAU * day_part)
-	_sun.rotation_degrees = Vector3(
-			-lerpf(15.0, 42.0, height), -125.0 + 25.0 * sin(TAU * day_part * 0.5), 0.0)
 	_sun.light_color = LOW_SUN.lerp(HIGH_SUN, height)
 	_sun.light_energy = lerpf(1.6, 0.25, gloom)
 

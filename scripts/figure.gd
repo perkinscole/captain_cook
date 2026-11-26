@@ -93,7 +93,7 @@ func _ready() -> void:
 		_box(torso, Vector3(0.17, 0.42, 0.02), Vector3(0.0, 0.26, -0.137), neck)  # waistcoat
 	_cylinder(torso, 0.075, 0.085, 0.07, Vector3(0.0, 0.6, 0.0), neck)  # stock or neckerchief
 
-	var head := _joint(torso, "head", Vector3(0.0, 0.66, 0.0))
+	var head := _joint(torso, "head", Vector3(0.0, 0.61, 0.0))
 	var face := MeshInstance3D.new()
 	var ball := SphereMesh.new()
 	ball.radius = 0.105
