@@ -14,6 +14,7 @@ extends Node3D
 ##   Tutorial, Hud, GameMenu, SoundBoard          teaching, showing and sounding
 
 const PAINTERLY := preload("res://shaders/painterly.gdshader")
+const IMPASTO := preload("res://shaders/impasto.gdshader")
 const START_POSITION := Vector3(0.0, 0.0, 700.0)
 const DECK_Y := ShipVisual.DECK_Y
 const QD_Y := ShipLayout.QUARTERDECK_Y
@@ -62,7 +63,7 @@ var spyglass_up: bool = false
 var groundings: int = 0
 
 var _spyglass: Spyglass
-var _paint: ColorRect
+var _paint: Control
 var _lead_gauge: LeadGauge
 var _last_safe := Vector2.ZERO
 var _lookout_quiet: float = 0.0
@@ -770,19 +771,34 @@ func _place_hand(role: String, at: Vector3, facing: float) -> void:
 	_station[h] = at
 
 
+## One full-screen coat of the painted look.
+func _coat(shader: Shader) -> ColorRect:
+	var rect := ColorRect.new()
+	rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	rect.material = mat
+	return rect
+
+
 func _build_ui() -> void:
 	# The painted look sits between the 3D picture and the interface, so the
 	# picture is painted and the words stay sharp.
 	var paint_layer := CanvasLayer.new()
 	paint_layer.layer = 0
 	add_child(paint_layer)
-	_paint = ColorRect.new()
+	_paint = Control.new()
 	_paint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_paint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var paint_mat := ShaderMaterial.new()
-	paint_mat.shader = PAINTERLY
-	_paint.material = paint_mat
 	paint_layer.add_child(_paint)
+	# Two coats. The first turns the picture into dabs of colour. The second
+	# reads what the first made and gives the paint thickness and brush marks.
+	_paint.add_child(_coat(PAINTERLY))
+	var fresh_copy := BackBufferCopy.new()
+	fresh_copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+	_paint.add_child(fresh_copy)
+	_paint.add_child(_coat(IMPASTO))
 
 	var layer := CanvasLayer.new()
 	layer.layer = 1

@@ -89,9 +89,13 @@ first prototype also tried holding the wheel directly; giving orders was chosen.
   the part of the compass she cannot sail into (red wedge) and the course
   ordered (brass pointer). Panels show the ship, the crew and the stores. What
   the hands call back appears at the bottom left. H shows the keys.
-- **Painted look.** A filter turns the picture into dabs of paint, with glowing
-  highlights and a darkened border. P turns it on and off. If the game runs
-  slowly, turn it off first.
+- **Oil paint.** The picture is painted in two coats. The first turns it into
+  dabs of colour that keep their edges. The second gives the paint thickness:
+  brush-hair ridges that follow the edges of shapes and wander in open sky and
+  sea, thicker in the lights, lit from the upper left with small glints, with
+  canvas weave showing through the thin darks, tones grouped as from a limited
+  palette, yellowed varnish and a darkened border. P turns it on and off. If
+  the game runs slowly, turn it off first.
 - **Waves.** Two long swells that never change, plus wind waves that run
   before the local wind and build as it blows harder, so a squall raises a
   real sea. Crests are sharp and troughs wide, whitecaps appear when it
@@ -169,7 +173,7 @@ Systems are kept separate so each can be swapped:
 | `scripts/wind.gd` | Wind direction and strength over time |
 | `scripts/sea.gd`, `shaders/ocean.gdshader` | The waves, and how high the water is under the ship |
 | `scripts/wake.gd`, `shaders/wake.gdshader` | The ship's wake |
-| `shaders/painterly.gdshader` | The painted look |
+| `shaders/painterly.gdshader`, `impasto.gdshader` | The oil-paint look: dabs of colour, then thickness and brush marks |
 | `scripts/sound_board.gd`, `audio/`, `tools/make_sounds.py` | Sounds, and how they are made |
 | `scripts/ui/` | Theme, compass, panels, spyglass, crew cards, title and pause pages |
 | `scripts/atmosphere.gd`, `shaders/sky.gdshader` | Sky, sun, clouds and fog |
