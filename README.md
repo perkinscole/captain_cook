@@ -3,7 +3,7 @@
 A first-person game about Captain James Cook's voyages, seen by a young officer
 who serves under him. The full brief is in [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md).
 
-## Current state: chart one island, plus milestone 1 "sailing feel"
+## Current state: chart one island, then show the chart to Cook
 
 One ship, one patch of ocean, one island, and a chart that starts blank and
 fills in as you sail within sight of the coast. It is done when you have sailed
@@ -24,8 +24,17 @@ On top of that, the sailing now has some depth:
   much sail in a squall and one blows out. In thick weather you must stand
   closer inshore to chart the coast.
 
-Everything is placeholder shapes. There is no crew, story or scoring yet.
-Both control modes are still in, so they can be compared before one is picked.
+There is also one story scene, to test telling the story through poses and
+dialogue instead of animation. Captain Cook stands on the quarterdeck, to your
+right. Look at him and press E to speak. Once the survey is complete he asks to
+see the chart and puts one question to you; your answer changes how he regards
+you and how the finished chart is drawn. The ship lies hove to while you talk.
+
+Everything is placeholder shapes, and the dialogue is placeholder writing that
+still needs checking against the historical record. There is no crew or scoring yet.
+
+Control is by giving orders (you call a course and the helmsman steers). The
+first prototype also tried holding the wheel directly; giving orders was chosen.
 
 ## Running it
 
@@ -37,10 +46,11 @@ Both control modes are still in, so they can be compared before one is picked.
 
 | Key | Action |
 | --- | --- |
-| Tab | Switch between the two control modes |
-| A / D | **Giving orders:** order the course one compass point to port / starboard. **At the wheel:** hold to turn the wheel. |
+| A / D | Order the course one compass point to port / starboard |
 | W / S | Make / reduce sail |
 | M | Enlarge or put away the chart |
+| E | Speak with the person you are looking at |
+| Space, then 1 to 3 | Continue a conversation, then pick an answer |
 | Mouse | Look around (click to capture the mouse, Esc to free it) |
 
 A square-rigger cannot sail closer than about 50 degrees to the wind. To get
@@ -56,9 +66,13 @@ Systems are kept separate so each can be swapped:
 | `scripts/wind.gd` | Wind direction and strength over time |
 | `scripts/weather.gd` | Fair weather, squalls and mist; drives the wind and visibility |
 | `scripts/ship.gd` | Ship movement from wind, sail and rudder |
-| `scripts/control_mode.gd`, `orders_mode.gd`, `helm_mode.gd` | The two input modes being compared |
+| `scripts/control_mode.gd`, `orders_mode.gd` | How the ship is steered (giving orders) |
 | `scripts/island.gd` | Procedural island and its coastline |
 | `scripts/charting.gd` | Which coast has been surveyed, and the ship's track |
 | `scripts/chart_view.gd` | Drawing the chart |
 | `scripts/ship_visual.gd`, `deck_camera.gd` | Placeholder ship and first-person view |
+| `scripts/dialogue.gd`, `dialogue_box.gd` | Running a conversation, and showing it |
+| `scripts/figure.gd` | Placeholder posed character |
+| `scripts/story_state.gd` | What the story remembers (Cook's trust, flags) |
+| `story/cook_scenes.gd` | Conversations with Cook, as data |
 | `scripts/main.gd` | Builds the scene and wires the above together |

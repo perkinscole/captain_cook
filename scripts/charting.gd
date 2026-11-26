@@ -6,7 +6,7 @@ extends Node
 signal completed
 
 const CLEAR_SIGHT_RANGE := 450.0  ## metres at which a coast can be fixed on a clear day
-const DONE_FRACTION := 0.98
+const DONE_FRACTION := 0.95
 const CHECK_INTERVAL := 0.25
 
 var ship: Ship
@@ -14,6 +14,7 @@ var island: Island
 
 var seen := PackedByteArray()        ## one flag per island.coast point
 var seen_count: int = 0
+var guessed := PackedByteArray()     ## points never seen, joined up by guess at the end
 var track := PackedVector2Array()    ## ship's path as world (x, z)
 var complete: bool = false
 var sight_range: float = CLEAR_SIGHT_RANGE  ## shorter in thick weather
@@ -24,6 +25,8 @@ var _timer: float = 0.0
 func start() -> void:
 	seen.resize(island.coast.size())
 	seen.fill(0)
+	guessed.resize(island.coast.size())
+	guessed.fill(0)
 	seen_count = 0
 	track.clear()
 	complete = false
@@ -59,7 +62,11 @@ func _physics_process(delta: float) -> void:
 			seen_count += 1
 
 	if not complete and fraction() >= DONE_FRACTION:
-		seen.fill(1)  # the last few gaps are joined up in the fair copy
+		# The last few gaps are joined up in the fair copy. Remember which.
+		for i in seen.size():
+			if seen[i] == 0:
+				guessed[i] = 1
+		seen.fill(1)
 		seen_count = seen.size()
 		complete = true
 		completed.emit()

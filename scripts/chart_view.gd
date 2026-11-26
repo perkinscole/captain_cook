@@ -13,6 +13,7 @@ const TRACK := Color(0.50, 0.20, 0.12, 0.7)
 var charting: Charting
 var ship: Ship
 var wind: Wind
+var dot_guesses: bool = false  ## draw guessed coast as dots, not a firm line
 var centre := Vector2.ZERO  ## world (x, z) at the middle of the sheet
 
 
@@ -50,7 +51,10 @@ func _draw() -> void:
 	var n := coast.size()
 	for i in n:
 		var j := (i + 1) % n
-		if charting.seen[i] == 1 and charting.seen[j] == 1:
+		if dot_guesses and (charting.guessed[i] == 1 or charting.guessed[j] == 1):
+			if i % 2 == 0:
+				draw_circle(_to_sheet(coast[i]), 1.3, TRACK)
+		elif charting.seen[i] == 1 and charting.seen[j] == 1:
 			draw_line(_to_sheet(coast[i]), _to_sheet(coast[j]), INK, 2.0)
 
 	# The ship: a small arrowhead pointing along her heading.

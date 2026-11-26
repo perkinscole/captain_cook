@@ -1,10 +1,13 @@
 extends Node3D
-## Chart one island, with milestone 1 "sailing feel" on top.
+## Chart one island, then show the chart to Captain Cook.
 ## Builds the whole scene in code and wires the separate systems together:
-## Weather -> Wind -> Ship <- ControlMode, and Ship + Island -> Charting -> ChartView.
+## Weather -> Wind -> Ship <- ControlMode, Ship + Island -> Charting -> ChartView,
+## and Dialogue -> DialogueBox + Figure for the story scene.
 
 const OCEAN_SHADER := preload("res://shaders/ocean.gdshader")
 const START_POSITION := Vector3(0.0, 0.0, 900.0)
+const COOK_POSITION := Vector3(2.6, 3.15, 8.0)  # quarterdeck, starboard side
+const COOK_IDLE_FACING := -0.9                  # looking out over the bow
 
 const FAIR_SKY_TOP := Color(0.20, 0.33, 0.52)
 const FAIR_HORIZON := Color(0.85, 0.72, 0.55)
@@ -19,8 +22,12 @@ var charting: Charting
 var chart_view: ChartView
 var camera: DeckCamera
 
-var modes: Array[ControlMode] = []
-var mode_index: int = 0
+var control: ControlMode
+var story := StoryState.new()
+var dialogue: Dialogue
+var dialogue_box: DialogueBox
+var cook: Figure
+var cook_in_view: bool = false
 var chart_large: bool = false
 var notice: String = ""
 var notice_time: float = 0.0
@@ -32,6 +39,7 @@ var _env: Environment
 var _sun: DirectionalLight3D
 var _hud: Label
 var _notice_label: Label
+var _prompt_label: Label
 
 
 func _ready() -> void:
@@ -75,18 +83,28 @@ func _ready() -> void:
 	charting.start()
 	charting.completed.connect(_on_chart_completed)
 
-	modes.append(OrdersMode.new())
-	modes.append(HelmMode.new())
-	for mode in modes:
-		add_child(mode)
-	modes[mode_index].activate(ship)
+	control = OrdersMode.new()
+	add_child(control)
+	control.activate(ship)
+
+	cook = Figure.new()
+	cook.position = COOK_POSITION
+	cook.facing = COOK_IDLE_FACING
+	ship.add_child(cook)
+
+	dialogue = Dialogue.new()
+	dialogue.story = story
+	add_child(dialogue)
+	dialogue.line_changed.connect(_on_dialogue_line)
+	dialogue.finished.connect(_on_dialogue_finished)
 
 	_build_ui()
 	_say("Chart the island ahead. Sail right round it within sight of the shore.", 10.0)
 
 
 func _physics_process(delta: float) -> void:
-	modes[mode_index].steer(ship, delta)
+	if not dialogue.active:
+		control.steer(ship, delta)
 	ship.sea_state = weather.sea_state
 	charting.sight_range = Charting.CLEAR_SIGHT_RANGE * weather.visibility
 
@@ -100,7 +118,14 @@ func _process(delta: float) -> void:
 	_ocean.position = Vector3(ship.position.x, 0.0, ship.position.z)
 	_apply_weather_look()
 
-	var mode := modes[mode_index]
+	var to_cook := (ship.to_global(cook.eye_position()) - camera.global_position).normalized()
+	cook_in_view = to_cook.dot(-camera.global_transform.basis.z) > 0.93
+	if dialogue.active:
+		camera.ease_toward(cook.eye_position(), 1.0 - exp(-3.0 * delta))
+	_hud.visible = not dialogue.active
+	_prompt_label.visible = cook_in_view and not dialogue.active
+
+	var mode := control
 	var lines := PackedStringArray([
 		"Heading %03d° (%s)    %.1f knots" % [
 			roundi(ship.heading_deg) % 360, Compass.point_name(ship.heading_deg), ship.speed * 1.944],
@@ -114,7 +139,7 @@ func _process(delta: float) -> void:
 		"",
 		mode.help(),
 		"W / S  make / reduce sail",
-		"Tab  change control mode      M  chart      Mouse  look      Esc  free mouse",
+		"M  chart      Mouse  look      E  speak (when looking at someone)      Esc  free mouse",
 	])
 	_hud.text = "\n".join(lines)
 
@@ -134,30 +159,79 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		camera.look(event.relative)
+		if not dialogue.active:
+			camera.look(event.relative)
 	elif event is InputEventKey and event.pressed and not event.echo:
 		var key: Key = event.physical_keycode
-		match key:
-			KEY_ESCAPE:
-				Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-			KEY_TAB:
-				mode_index = (mode_index + 1) % modes.size()
-				modes[mode_index].activate(ship)
-				_say("Control mode: %s" % modes[mode_index].mode_name(), 3.0)
-			KEY_M:
-				chart_large = not chart_large
-			KEY_W:
-				if not ship.set_sail(ship.sail + 1) and ship.sail_limit < Ship.MAX_SAIL:
-					_say("No more sail until the hands have bent a new one.", 4.0)
-			KEY_S:
-				ship.set_sail(ship.sail - 1)
-			_:
-				modes[mode_index].handle_key(ship, key)
+		if key == KEY_ESCAPE:
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		elif dialogue.active:
+			_dialogue_key(key)
+		else:
+			_sailing_key(key)
+
+
+func _sailing_key(key: Key) -> void:
+	match key:
+		KEY_E:
+			if cook_in_view:
+				_speak_with_cook()
+		KEY_M:
+			chart_large = not chart_large
+		KEY_W:
+			if not ship.set_sail(ship.sail + 1) and ship.sail_limit < Ship.MAX_SAIL:
+				_say("No more sail until the hands have bent a new one.", 4.0)
+		KEY_S:
+			ship.set_sail(ship.sail - 1)
+		_:
+			control.handle_key(ship, key)
+
+
+func _dialogue_key(key: Key) -> void:
+	if not dialogue_box.is_fully_shown():
+		if key == KEY_SPACE or key == KEY_E or key == KEY_ENTER:
+			dialogue_box.show_all()
+	elif dialogue.choices.is_empty():
+		if key == KEY_SPACE or key == KEY_E or key == KEY_ENTER:
+			dialogue.advance()
+	elif key >= KEY_1 and key <= KEY_9:
+		dialogue.choose(key - KEY_1)
+
+
+func _speak_with_cook() -> void:
+	chart_large = false
+	ship.hove_to = true
+	cook.facing = camera.yaw_to_face_me(cook.position)
+	if not charting.complete:
+		dialogue.start(CookScenes.ORDERS)
+	elif not story.has_flag("chart_shown"):
+		dialogue.start(CookScenes.THE_CHART)
+	else:
+		dialogue.start(CookScenes.CARRY_ON)
+
+
+func _on_dialogue_line() -> void:
+	dialogue_box.refresh()
+	cook.set_pose(dialogue.pose)
+
+
+func _on_dialogue_finished() -> void:
+	ship.hove_to = false
+	cook.facing = COOK_IDLE_FACING
+	cook.set_pose("at_ease")
+	chart_view.dot_guesses = story.has_flag("chart_dotted")
+	if story.has_flag("chart_shown") and not story.has_flag("chart_scene_done"):
+		story.flags["chart_scene_done"] = true
+		chart_large = true
+		if story.has_flag("chart_dotted"):
+			_say("The doubtful coast is pricked in with dots.  (M to put the chart away)", 12.0)
+		else:
+			_say("The chart stands as you drew it.  (M to put the chart away)", 12.0)
 
 
 func _on_chart_completed() -> void:
-	chart_large = true
-	_say("The survey is complete. A fair chart of the island, sir.  (M to put it away)", 20.0)
+	_say("The survey is complete. Captain Cook is on the quarterdeck, to your right, "
+			+ "and will want to see the chart. Look at him and press E.", 20.0)
 
 
 func _on_weather_changed(state: Weather.State) -> void:
@@ -300,6 +374,17 @@ func _build_ui() -> void:
 	_notice_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_notice_label.position.y = 24.0
 	layer.add_child(_notice_label)
+
+	_prompt_label = _label(18)
+	_prompt_label.text = "E  speak with Captain Cook"
+	_prompt_label.set_anchors_preset(Control.PRESET_CENTER)
+	_prompt_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_prompt_label.position.y += 60.0
+	layer.add_child(_prompt_label)
+
+	dialogue_box = DialogueBox.new()
+	dialogue_box.dialogue = dialogue
+	layer.add_child(dialogue_box)
 
 	chart_view = ChartView.new()
 	chart_view.charting = charting

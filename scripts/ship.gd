@@ -35,6 +35,7 @@ var rudder: float = 0.0       ## -1 (hard a-port) .. +1 (hard a-starboard)
 var sea_state: float = 0.0    ## 0 = easy swell, 1 = steep sea. Motion only.
 var leeway_deg: float = 0.0   ## how far her real track sags downwind of her heading
 var strain: float = 0.0       ## seconds spent over-pressed
+var hove_to: bool = false     ## lying stopped with a topsail backed, e.g. to talk
 
 var _time: float = 0.0
 var _roll: float = 0.0
@@ -115,6 +116,9 @@ func _physics_process(delta: float) -> void:
 		# She carries her way through the wind's eye, which is what makes
 		# tacking possible. Otherwise she slows fairly quickly.
 		accel = 0.45 if a < NO_GO_DEG and speed > 0.0 else 1.0
+	if hove_to:
+		target = 0.0
+		accel = 1.5
 	speed = move_toward(speed, target, accel * delta)
 
 	# The rudder needs water moving past it, and works backwards with sternway.
@@ -123,6 +127,8 @@ func _physics_process(delta: float) -> void:
 	# Head to wind with sail set, her bow is pushed off the wind.
 	if a < NO_GO_DEG and canvas > 0.02:
 		turn_rate -= signf(rel) * 1.5 * canvas
+	if hove_to:
+		turn_rate = 0.0
 	heading_deg = wrapf(heading_deg + turn_rate * delta, 0.0, 360.0)
 
 	# Leeway: the wind shoves her sideways, most when close-hauled.
@@ -131,6 +137,8 @@ func _physics_process(delta: float) -> void:
 	var sideways := wind_to - fwd2 * wind_to.dot(fwd2)  # length = sin(a)
 	var closeness := clampf((130.0 - a) / 80.0, 0.0, 1.0)
 	var drift := sideways * 0.05 * wind.strength * (0.3 + canvas) * closeness
+	if hove_to:
+		drift = Vector2.ZERO
 	leeway_deg = rad_to_deg(atan2(drift.length(), maxf(absf(speed), 0.5)))
 
 	var pos := position
@@ -150,7 +158,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _update_strain(delta: float) -> void:
-	if is_over_pressed():
+	if is_over_pressed() and not hove_to:
 		strain += delta
 		if strain >= STRAIN_SECONDS:
 			strain = 0.0

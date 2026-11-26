@@ -1,8 +1,9 @@
 class_name ControlMode
 extends Node
-## Base class for a way of steering the ship. The prototype compares two:
-## giving orders (OrdersMode) and taking the wheel yourself (HelmMode).
-## A mode only ever sets ship.rudder, so modes can be swapped freely.
+## Base class for a way of steering the ship. The game uses OrdersMode
+## (you call a course, the helmsman steers). The first prototype also tried
+## holding the wheel directly; giving orders was chosen.
+## A mode only ever sets ship.rudder, so another can be swapped in.
 
 
 func mode_name() -> String:
