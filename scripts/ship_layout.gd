@@ -88,7 +88,8 @@ const OBSTACLES: Array[Vector4] = [
 ## Half the width of the hull at a point along it.
 static func half_breadth(z: float) -> float:
 	var u := clampf((z - BOW_Z) / LENGTH, 0.0, 1.0)
-	var bow := pow(clampf(u / 0.12, 0.0, 1.0), 0.4)   # bluff, like a collier
+	# Bluff, like a collier, and shaped to sit just inside the modelled hull.
+	var bow := 1.0 - pow(1.0 - clampf(u / 0.3, 0.0, 1.0), 2.2)
 	var stern := 1.0 - 0.22 * pow(clampf((u - 0.78) / 0.22, 0.0, 1.0), 2.0)
 	return HALF_BEAM * bow * stern
 

@@ -21,7 +21,7 @@ P               painted look on or off
 H               this sheet
 Esc           pause
 
-For testing:   9  jump to Matavai Bay      0  finish sketching the coast"""
+For testing:   8  modelled hull on or off      9  jump to Matavai Bay      0  finish sketching the coast"""
 
 var ship: Ship
 var wind: Wind

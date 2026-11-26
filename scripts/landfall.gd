@@ -56,6 +56,7 @@ func build(coast_angle: float) -> void:
 	pascoe.long_coat = false
 	pascoe.hair_color = Color(0.35, 0.24, 0.14)
 	pascoe.neck_color = Color(0.55, 0.14, 0.12)
+	pascoe.model_path = Models.SEAMAN
 	pascoe.idle_facing = -PI * 0.75
 	_set.add_child(pascoe)
 	pascoe.position = _on_sand(Vector3(2.2, 0.0, -3.0))

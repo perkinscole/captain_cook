@@ -23,8 +23,8 @@ func _ready() -> void:
 	_add(port_beat, 2, Color(0.24, 0.32, 0.40), false)
 	# One on the forecastle, round the windlass.
 	var fore_beat: Array[Vector3] = [
-		Vector3(-2.1, fore, -13.2), Vector3(2.1, fore, -13.2),
-		Vector3(2.3, fore, -9.8), Vector3(-2.3, fore, -9.8),
+		Vector3(-1.3, fore, -12.9), Vector3(1.3, fore, -12.9),
+		Vector3(2.2, fore, -9.8), Vector3(-2.2, fore, -9.8),
 	]
 	_add(fore_beat, 1, Color(0.42, 0.40, 0.30), false)
 	# A marine sentry pacing across the forward end of the quarterdeck.
@@ -34,9 +34,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	for hand in _hands:
-		# Either a code-built Figure or a modelled SeamanBody: both answer to
-		# `walking`, `facing` and `set_pose`.
-		var figure = hand["figure"]
+		var figure: Figure = hand["figure"]
 		var beat: Array = hand["beat"]
 		if float(hand["wait"]) > 0.0:
 			hand["wait"] = float(hand["wait"]) - delta
@@ -67,20 +65,6 @@ func _process(delta: float) -> void:
 
 
 func _add(beat: Array[Vector3], start: int, jacket: Color, marine: bool) -> void:
-	# The hands are the modelled seaman where his model is there to use. The
-	# marine, and everyone if it is not, are built in code.
-	if not marine and SeamanBody.available():
-		var seaman := SeamanBody.new()
-		seaman.pace = PACE
-		# The same man three times over would look it; wash each a little differently.
-		seaman.tint = [Color(1.0, 1.0, 1.0), Color(0.9, 0.86, 0.8), Color(0.82, 0.9, 0.95)][start % 3]
-		seaman.position = beat[start]
-		add_child(seaman)
-		_hands.append({
-			"figure": seaman, "beat": beat, "next": (start + 1) % beat.size(),
-			"wait": randf_range(0.0, 3.0), "marine": false,
-		})
-		return
 	var figure := Figure.new()
 	figure.coat_color = jacket
 	figure.legs_color = Color(0.86, 0.83, 0.74) if marine else Color(0.80, 0.76, 0.66)
@@ -90,6 +74,11 @@ func _add(beat: Array[Vector3], start: int, jacket: Color, marine: bool) -> void
 	figure.wears_cap = not marine and start != 2
 	figure.long_coat = marine
 	figure.cross_belts = marine
+	# A modelled body where there is one; the colours above are for when not.
+	figure.model_path = Models.MARINE if marine else Models.SEAMAN
+	var washes: Array[Color] = [Color(1.0, 1.0, 1.0), Color(0.9, 0.86, 0.8), Color(0.82, 0.9, 0.95)]
+	figure.model_tint = washes[start % 3]
+	figure.walk_pace = PACE
 	figure.position = beat[start]
 	add_child(figure)
 	_hands.append({

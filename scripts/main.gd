@@ -42,6 +42,7 @@ var landfall: Landfall
 var camera: DeckCamera
 var player: Player
 var topmen: Topmen
+var ship_visual: ShipVisual
 var effects: DeckEffects
 var control: OrdersMode
 var story := StoryState.new()
@@ -141,6 +142,7 @@ func _ready() -> void:
 	var visual := ShipVisual.new()
 	visual.ship = ship
 	ship.add_child(visual)
+	ship_visual = visual
 	topmen = Topmen.new()
 	topmen.visual = visual
 	topmen.ship = ship
@@ -199,6 +201,7 @@ func _ready() -> void:
 	control.activate(ship)
 
 	cook = Figure.new()
+	cook.model_path = Models.COOK
 	cook.position = COOK_POSITION
 	cook.idle_facing = COOK_IDLE_FACING
 	ship.add_child(cook)
@@ -233,6 +236,10 @@ func _ready() -> void:
 	effects.lead = lead
 	effects.lead_station = _station[crew.hand_for("lead")]
 	ship.add_child(effects)
+	# Others of the ship's company who are aboard but have nothing to say yet:
+	# Mr Clerke on the quarterdeck, and Mr Banks in the great cabin.
+	_stand_figure(Models.OFFICER, Vector3(-2.7, QD_Y, 9.2), 0.3)
+	_stand_figure(Models.BANKS, Vector3(1.9, DECK_Y, 13.2), PI * 0.2)
 	player.people.append(cook.position)
 	for h: Hand in _hand_figures:
 		player.people.append((_hand_figures[h] as Figure).position)
@@ -489,6 +496,10 @@ func _sailing_key(key: Key) -> void:
 				sound.play("pipe_helm", -10.0)
 		KEY_T:
 			tutorial.skip()
+		KEY_8:
+			if ship_visual.has_shell():
+				var on := ship_visual.show_shell(not ship_visual.shell_shown())
+				_say("Testing: the modelled hull is %s." % ("shown" if on else "hidden"), 4.0)
 		KEY_9:
 			_debug_jump_to_bay()
 		KEY_0:
@@ -871,6 +882,16 @@ func _find_landmark_in_view() -> int:
 
 # --- building the scene ----------------------------------------------------
 
+## Stands a silent member of the ship's company somewhere aboard.
+func _stand_figure(model: String, at: Vector3, facing: float) -> void:
+	var figure := Figure.new()
+	figure.model_path = model
+	figure.position = at
+	figure.idle_facing = facing
+	ship.add_child(figure)
+	player.people.append(at)
+
+
 func _place_hand(role: String, at: Vector3, facing: float) -> void:
 	var h := crew.hand_for(role)
 	var figure := Figure.new()
@@ -881,12 +902,21 @@ func _place_hand(role: String, at: Vector3, facing: float) -> void:
 	figure.skin_color = h.skin
 	figure.hair_color = h.hair
 	figure.neck_color = h.kerchief
-	if h.boy:
-		figure.scale = Vector3(0.8, 0.8, 0.8)
+	if h.boy and not Models.has(Models.SHIPS_BOY):
+		figure.scale = Vector3(0.8, 0.8, 0.8)   # the modelled boy is already boy-sized
 	figure.wears_hat = false
 	figure.wears_cap = role == "lead" or role == "sails" or role == "lookout"
 	figure.cap_color = h.kerchief
 	figure.long_coat = false
+	# A modelled body where there is one; the colours above are for when not.
+	match role:
+		"helm":
+			figure.model_path = Models.OLD_SEAMAN
+		"lookout":
+			figure.model_path = Models.SHIPS_BOY
+		_:
+			figure.model_path = Models.SEAMAN
+			figure.model_tint = Color(1.0, 1.0, 1.0).lerp(h.jacket.lightened(0.4), 0.35)
 	ship.add_child(figure)
 	_hand_figures[h] = figure
 	_station[h] = at

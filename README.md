@@ -184,6 +184,7 @@ first prototype also tried holding the wheel directly; giving orders was chosen.
 | H | Show the keys |
 | X | Go about: sail as close to the wind on the other side |
 | T | Skip the lessons |
+| 8 | Testing: modelled hull on or off |
 | 9 | Testing: jump to Matavai Bay |
 | 0 | Testing: finish sketching the coast |
 | Mouse | Look around |
@@ -213,7 +214,8 @@ Systems are kept separate so each can be swapped:
 | `scripts/birds.gd`, `shaders/surf.gdshader` | Seabirds, and surf on the shore |
 | `scripts/sea_life.gd` | Dolphins and flying fish |
 | `scripts/deckhands.gd` | Hands who walk the deck |
-| `scripts/seaman_body.gd`, `models/` | A modelled, rigged seaman with a recorded walk, used for those hands |
+| `scripts/models.gd`, `models/` | Modelled bodies and ship parts, and where each is used |
+| `shaders/hull_shell.gdshader` | The modelled hull, wrapped round the code-built ship as an outer shell |
 | `scripts/tutorial.gd` | The lessons |
 | `scripts/weather.gd` | Fair weather, squalls and mist; drives the wind and visibility |
 | `scripts/ship.gd` | Ship movement from wind, sail and rudder |

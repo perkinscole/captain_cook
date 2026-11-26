@@ -13,6 +13,13 @@ extends Node3D
 ## yards are braced, which way the sails fill, and where the wind is.
 
 const DECK_SHADER := preload("res://shaders/deck.gdshader")
+const SHELL_SHADER := preload("res://shaders/hull_shell.gdshader")
+## How the modelled hull is stretched to wrap round this ship: metres per
+## unit of the model along her length, height and beam, then how far up and
+## aft its middle sits. The same numbers are in hull_shell.gdshader.
+const SHELL_FIT := Vector3(16.6, 15.5, 14.6)
+const SHELL_UP := 2.54
+const SHELL_AFT := -0.5
 
 const DECK_Y := ShipLayout.WAIST_Y   # the masts are measured from the waist
 const STATIONS := 44
@@ -44,6 +51,10 @@ var _driver: Node3D
 var _pennant: Node3D
 var _ensign: Node3D
 var _wheel: Node3D
+var _shell: Node3D            # the modelled outer hull, if there is one
+var _skin: MeshInstance3D     # the code-built outer hull
+var _skin_both_sides: ShaderMaterial
+var _skin_inside_only: ShaderMaterial
 var _time: float = 0.0
 var _fill: float = 1.0
 var _rig: SurfaceTool
@@ -80,6 +91,7 @@ func _ready() -> void:
 	_rig = SurfaceTool.new()
 	_rig.begin(Mesh.PRIMITIVE_TRIANGLES)
 	_build_hull()
+	_build_shell()
 	_build_decks()
 	_build_stern()
 	_build_ladders_and_rails()
@@ -162,8 +174,16 @@ func _build_hull() -> void:
 			var p := i * SECTION_POINTS + j
 			_quad(st, p, p + SECTION_POINTS, p + SECTION_POINTS + 1, p + 1)
 	st.generate_normals()
-	var skin := _material(Color(1.0, 1.0, 1.0))
-	_add(self, st.commit(), Vector3.ZERO, skin)
+	_skin_both_sides = _material(Color(1.0, 1.0, 1.0))
+	# The same paint, but drawn only on the inside of the planking: used when
+	# the modelled hull is wrapped round her, so that this one does not poke
+	# out through it, while the lower deck still has walls.
+	var inside := Shader.new()
+	inside.code = Paint.SHADER.code.replace("render_mode cull_disabled;", "render_mode cull_front;")
+	_skin_inside_only = ShaderMaterial.new()
+	_skin_inside_only.shader = inside
+	_skin_inside_only.set_shader_parameter("tint", Color(0.8, 0.7, 0.55))
+	_skin = _add(self, st.commit(), Vector3.ZERO, _skin_both_sides)
 
 	# Inside of the bulwarks (painted red, as was the custom) and the rail
 	# on top of them. Aft, the same wall runs down to line the great cabin.
@@ -200,6 +220,96 @@ func _build_hull() -> void:
 	_add(self, cap.commit(), Vector3.ZERO, _dark)
 	lining.generate_normals()
 	_add(self, lining.commit(), Vector3.ZERO, _cream)
+
+
+## Wraps the modelled hull round the ship as an outer shell, if the model is
+## there. It lies along its own X with the bow toward -X, so it is turned
+## and stretched to lie along the ship.
+func _build_shell() -> void:
+	if not Models.has(Models.HULL):
+		return
+	var scene := load(Models.HULL) as PackedScene
+	if scene == null:
+		return
+	var model := scene.instantiate() as Node3D
+	if model == null:
+		return
+	_shell = Node3D.new()
+	_shell.transform = Transform3D(
+			Basis(Vector3(0.0, 0.0, SHELL_FIT.x), Vector3(0.0, SHELL_FIT.y, 0.0),
+					Vector3(-SHELL_FIT.z, 0.0, 0.0)),
+			Vector3(0.0, SHELL_UP, SHELL_AFT))
+	add_child(_shell)
+	_shell.add_child(model)
+	for part in Models.meshes_of(model):
+		var picture := Models.picture_of(part)
+		if picture == null:
+			continue
+		var mat := ShaderMaterial.new()
+		mat.shader = SHELL_SHADER
+		mat.set_shader_parameter("picture", picture)
+		mat.set_shader_parameter("fit_scale", SHELL_FIT)
+		mat.set_shader_parameter("fit_up", SHELL_UP)
+		mat.set_shader_parameter("fit_aft", SHELL_AFT)
+		part.material_override = mat
+	show_shell(true)
+
+
+## Shows the modelled outer hull, or goes back to the code-built one.
+func show_shell(on: bool) -> bool:
+	if _shell == null:
+		return false
+	_shell.visible = on
+	_skin.material_override = _skin_inside_only if on else _skin_both_sides
+	return on
+
+
+func has_shell() -> bool:
+	return _shell != null
+
+
+func shell_shown() -> bool:
+	return _shell != null and _shell.visible
+
+
+## Stands a modelled fitting on the ship: scaled so that it measures `size`
+## metres along `axis` (0 = x, 1 = y, 2 = z of the model), turned by `turn`,
+## with the middle of its base at `at`. Returns null if the model is missing,
+## so that the caller can build the code version instead.
+func _fitting(path: String, axis: int, size: float, at: Vector3, turn: Basis) -> Node3D:
+	if not Models.has(path):
+		return null
+	var scene := load(path) as PackedScene
+	if scene == null:
+		return null
+	var model := scene.instantiate() as Node3D
+	if model == null:
+		return null
+	var box := AABB()
+	var first := true
+	for part in Models.meshes_of(model):
+		box = part.get_aabb() if first else box.merge(part.get_aabb())
+		first = false
+		var picture := Models.picture_of(part)
+		if picture != null:
+			var mat := Paint.textured(picture)
+			mat.set_shader_parameter("variation", 0.1)
+			mat.set_shader_parameter("relief", 0.8)
+			part.material_override = mat
+	if first or box.size[axis] <= 0.0:
+		model.free()
+		return null
+	var scale_by := size / box.size[axis]
+	# Put the middle of the model's base at the holder's origin, then turn
+	# and place the holder.
+	var holder := Node3D.new()
+	holder.transform = Transform3D(turn, at)
+	add_child(holder)
+	model.scale = Vector3(scale_by, scale_by, scale_by)
+	var middle := box.get_center()
+	model.position = -Vector3(middle.x, box.position.y, middle.z) * scale_by
+	holder.add_child(model)
+	return holder
 
 
 func _hull_color(y: float, top: float) -> Color:
@@ -296,14 +406,18 @@ func _build_stern() -> void:
 	_box(self, Vector3(b * 2.0 + 0.3, 0.12, 0.3), Vector3(0.0, top, z), _dark)   # taffrail
 	# The rudder head, and the great lantern on the taffrail.
 	_box(self, Vector3(0.3, 4.6, 0.9), Vector3(0.0, 0.2, z + 0.5), _wood)
-	_box(self, Vector3(0.1, 1.1, 0.1), Vector3(0.0, top + 0.55, z), _iron)
-	var glass := StandardMaterial3D.new()
-	glass.albedo_color = Color(1.0, 0.75, 0.35)
-	glass.emission_enabled = true
-	glass.emission = Color(1.0, 0.62, 0.25)
-	glass.emission_energy_multiplier = 2.5
-	_cylinder(self, 0.16, 0.22, 0.5, Vector3(0.0, top + 1.3, z), glass, 6)
-	_cylinder(self, 0.02, 0.2, 0.2, Vector3(0.0, top + 1.65, z), _iron, 6)
+	# The modelled lantern hangs out over the stern from its bracket (the
+	# bracket is on the model's +X side, so that side is turned forward).
+	var quarter_turn := Basis(Vector3.UP, PI * 0.5)
+	if _fitting(Models.LANTERN, 1, 1.5, Vector3(0.0, top + 0.05, z + 0.45), quarter_turn) == null:
+		_box(self, Vector3(0.1, 1.1, 0.1), Vector3(0.0, top + 0.55, z), _iron)
+		var glass := StandardMaterial3D.new()
+		glass.albedo_color = Color(1.0, 0.75, 0.35)
+		glass.emission_enabled = true
+		glass.emission = Color(1.0, 0.62, 0.25)
+		glass.emission_energy_multiplier = 2.5
+		_cylinder(self, 0.16, 0.22, 0.5, Vector3(0.0, top + 1.3, z), glass, 6)
+		_cylinder(self, 0.02, 0.2, 0.2, Vector3(0.0, top + 1.65, z), _iron, 6)
 	var glow := OmniLight3D.new()
 	glow.light_color = Color(1.0, 0.68, 0.35)
 	glow.light_energy = 1.4
@@ -366,25 +480,29 @@ func _breast_rail(from: float, to: float, deck_y: float, z: float) -> void:
 func _build_quarterdeck() -> void:
 	var y := ShipLayout.QUARTERDECK_Y
 	# The wheel, which turns with the rudder, and the binnacle before it.
-	_box(self, Vector3(0.16, 1.05, 0.34), Vector3(0.0, y + 0.52, 12.95), _wood)
 	_wheel = Node3D.new()
 	_wheel.position = Vector3(0.0, y + 1.1, 12.72)
 	add_child(_wheel)
-	var rim := TorusMesh.new()
-	rim.inner_radius = 0.44
-	rim.outer_radius = 0.52
-	var hoop := _add(_wheel, rim, Vector3.ZERO, _wood)
-	hoop.rotation.x = PI * 0.5
-	for k in 4:
-		var spoke := _box(_wheel, Vector3(1.3, 0.05, 0.05), Vector3.ZERO, _wood)
-		spoke.rotation.z = PI * k / 4.0
+	# The modelled wheel stands on its own pedestal. It is one piece, so it
+	# does not turn with the rudder as the code-built one does.
+	if _fitting(Models.WHEEL, 1, 1.55, Vector3(0.0, y, 12.75), Basis.IDENTITY) == null:
+		_box(self, Vector3(0.16, 1.05, 0.34), Vector3(0.0, y + 0.52, 12.95), _wood)
+		var rim := TorusMesh.new()
+		rim.inner_radius = 0.44
+		rim.outer_radius = 0.52
+		var hoop := _add(_wheel, rim, Vector3.ZERO, _wood)
+		hoop.rotation.x = PI * 0.5
+		for k in 4:
+			var spoke := _box(_wheel, Vector3(1.3, 0.05, 0.05), Vector3.ZERO, _wood)
+			spoke.rotation.z = PI * k / 4.0
 	_box(self, Vector3(0.55, 0.95, 0.45), Vector3(0.0, y + 0.47, 12.2), _wood)
 	_box(self, Vector3(0.3, 0.06, 0.3), Vector3(0.0, y + 0.97, 12.2), _brass)
 	# The capstan, with its bars shipped.
-	_cylinder(self, 0.42, 0.55, 1.0, Vector3(0.0, y + 0.5, 6.0), _wood, 10)
-	_cylinder(self, 0.7, 0.7, 0.22, Vector3(0.0, y + 1.1, 6.0), _wood, 10)
+	if _fitting(Models.CAPSTAN, 1, 1.25, Vector3(0.0, y, 6.0), Basis.IDENTITY) == null:
+		_cylinder(self, 0.42, 0.55, 1.0, Vector3(0.0, y + 0.5, 6.0), _wood, 10)
+		_cylinder(self, 0.7, 0.7, 0.22, Vector3(0.0, y + 1.1, 6.0), _wood, 10)
 	for k in 4:
-		var bar := _box(self, Vector3(3.2, 0.07, 0.07), Vector3(0.0, y + 1.1, 6.0), _wood)
+		var bar := _box(self, Vector3(3.2, 0.07, 0.07), Vector3(0.0, y + 1.12, 6.0), _wood)
 		bar.rotation.y = PI * k / 4.0 + 0.3
 	# Swivel guns on the rail, two a side.
 	for side: float in [-1.0, 1.0]:
@@ -433,10 +551,11 @@ func _build_waist() -> void:
 func _build_forecastle() -> void:
 	var y := ShipLayout.FORECASTLE_Y
 	# The windlass, for weighing the anchors, between its two bitts.
-	var barrel := _cylinder(self, 0.3, 0.3, 2.6, Vector3(0.0, y + 0.55, -11.6), _wood, 8)
-	barrel.rotation.z = PI * 0.5
-	for side: float in [-1.0, 1.0]:
-		_box(self, Vector3(0.24, 1.1, 0.5), Vector3(side * 1.4, y + 0.55, -11.6), _wood)
+	if _fitting(Models.WINDLASS, 0, 2.9, Vector3(0.0, y, -11.6), Basis.IDENTITY) == null:
+		var barrel := _cylinder(self, 0.3, 0.3, 2.6, Vector3(0.0, y + 0.55, -11.6), _wood, 8)
+		barrel.rotation.z = PI * 0.5
+		for side: float in [-1.0, 1.0]:
+			_box(self, Vector3(0.24, 1.1, 0.5), Vector3(side * 1.4, y + 0.55, -11.6), _wood)
 	# The belfry and the ship's bell, and the galley chimney.
 	for side: float in [-1.0, 1.0]:
 		_box(self, Vector3(0.12, 1.5, 0.12), Vector3(side * 0.45, y + 0.75, -7.95), _wood)
@@ -450,7 +569,15 @@ func _build_forecastle() -> void:
 		var cat := _box(self, Vector3(1.5, 0.24, 0.24),
 				Vector3(side * (b + 0.4), ShipLayout.rail_y(-12.6) + 0.05, -12.6), _wood)
 		cat.rotation.y = -side * 0.5
-		_anchor(Vector3(side * (b + 0.45), ShipLayout.rail_y(-11.0) - 1.3, -11.0), side)
+		# The modelled anchor is stowed as anchors were at sea: fished up and
+		# lashed flat against the bow, ring forward. Its shank lies along the
+		# model's X with the ring at +X, and it is flat in the model's XZ plane.
+		var stowed := Basis(Vector3(0.0, 0.0, -1.0), Vector3(-1.0, 0.0, 0.0), Vector3(0.0, 1.0, 0.0))
+		var stow_z := -10.4
+		var out := ShipLayout.half_breadth(stow_z) + 0.8
+		if _fitting(Models.ANCHOR, 0, 3.4,
+				Vector3(side * out, ShipLayout.rail_y(stow_z) - 1.0, stow_z), stowed) == null:
+			_anchor(Vector3(side * (b + 0.45), ShipLayout.rail_y(-11.0) - 1.3, -11.0), side)
 
 
 func _build_great_cabin() -> void:

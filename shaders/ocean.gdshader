@@ -110,7 +110,7 @@ void fragment() {
 		float u = (aft + 16.0) / 31.0;
 		float half_width = 0.0;
 		if (u > 0.01 && u < 0.995) {
-			float bow = pow(clamp(u / 0.12, 0.0, 1.0), 0.4);
+			float bow = 1.0 - pow(1.0 - clamp(u / 0.3, 0.0, 1.0), 2.2);
 			float stern = 1.0 - 0.22 * pow(clamp((u - 0.78) / 0.22, 0.0, 1.0), 2.0);
 			half_width = 4.0 * bow * stern * 0.84;
 			if (abs(across) < half_width) {

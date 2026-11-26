@@ -62,6 +62,10 @@ const POSES := {
 }
 const EYE_HEIGHT := 1.62
 const HIP_HEIGHT := 0.92
+## For a modelled body: the moment in its walk clip where it stands most
+## upright, and the pace the clip was made to walk at.
+const MODEL_STAND_AT := 0.5
+const MODEL_CLIP_PACE := 1.3
 
 ## Set these before adding the figure to the scene.
 var coat_color := Color(0.09, 0.12, 0.25)
@@ -78,6 +82,14 @@ var idle_facing: float = 0.0  ## yaw (radians) when nobody is speaking to them
 var idle_pose: String = "at_ease"  ## the pose they go back to
 var lying: bool = false       ## laid in a hammock
 
+## A modelled, rigged body to use instead of the one built here (a path from
+## Models). If the file is missing, the code-built body is used. A modelled
+## body has a recorded walk but no named poses: asked for a pose, it stands.
+var model_path: String = ""
+var model_tint := Color(1.0, 1.0, 1.0)   ## a wash of colour over a modelled body
+var walk_pace: float = 1.05              ## how fast it is moved when walking, m/s
+var eye_height: float = EYE_HEIGHT
+
 var facing: float = 0.0  ## yaw (radians) the figure turns toward
 var walking: bool = false  ## set while the figure is being moved along the deck
 
@@ -91,10 +103,17 @@ var _stride: float = 0.0      # 0 = standing, 1 = in full stride
 var _glance: float = 0.0      # where the head is idly turned
 var _glance_wait: float = 2.0
 var _quirk: float = 0.0       # so that no two people breathe in step
+var _player: AnimationPlayer  # only for a modelled body
+var _clip: StringName = &""
+var _clip_walking: bool = false
 
 
 func _ready() -> void:
 	_quirk = randf_range(0.0, TAU)
+	if Models.has(model_path) and _build_from_model():
+		facing = idle_facing
+		rotation.y = facing
+		return
 	var coat := _material(coat_color)
 	var legs := _material(legs_color)
 	var skin := Paint.skin(skin_color)
@@ -185,12 +204,54 @@ func _ready() -> void:
 	rotation.y = facing
 
 
+## Uses a modelled body. Returns false if it could not be loaded.
+func _build_from_model() -> bool:
+	var scene := load(model_path) as PackedScene
+	if scene == null:
+		return false
+	var body := scene.instantiate() as Node3D
+	if body == null:
+		return false
+	body.rotation.y = PI   # the models face +Z; everyone in the game faces -Z
+	add_child(body)
+	_sway = body
+	var tallest := 0.0
+	for part in Models.meshes_of(body):
+		tallest = maxf(tallest, part.get_aabb().end.y)
+		var picture := Models.picture_of(part)
+		if picture != null:
+			part.material_override = Paint.textured(picture, model_tint)
+	if tallest > 0.5:
+		eye_height = tallest * 0.93
+
+	# The chart, for when one is held: carried at the chest.
+	_chart = _box(self, Vector3(0.36, 0.28, 0.015), Vector3(0.0, eye_height * 0.72, -0.26),
+			_material(Color(0.91, 0.85, 0.70)))
+	_chart.rotation.x = -0.5
+	_chart.visible = false
+
+	for found in body.find_children("*", "AnimationPlayer", true, false):
+		_player = found as AnimationPlayer
+	if _player != null:
+		for clip in _player.get_animation_list():
+			if clip != &"RESET":
+				_clip = clip
+	if _player != null and _clip != &"":
+		_player.get_animation(_clip).loop_mode = Animation.LOOP_LINEAR
+		_player.play(_clip)
+		_player.speed_scale = 0.0
+		_player.seek(MODEL_STAND_AT, true)
+	return true
+
+
 ## Eases into a named pose. Unknown names are ignored.
 func set_pose(pose: String, seconds: float = 0.9) -> void:
 	if not POSES.has(pose):
 		return
 	var target: Dictionary = POSES[pose]
 	_chart.visible = target.get("chart", false)
+	if _parts.is_empty():
+		return   # a modelled body has no joints to pose
 	if _tween != null:
 		_tween.kill()
 		_tween = null
@@ -219,13 +280,24 @@ func lie_down(down: bool) -> void:
 ## Where the figure's eyes are, in its parent's space.
 func eye_position() -> Vector3:
 	if lying:
-		return position + Vector3(0.0, 0.2, EYE_HEIGHT * 0.9)
-	return position + Vector3(0.0, EYE_HEIGHT, 0.0)
+		return position + Vector3(0.0, 0.2, eye_height * 0.9)
+	return position + Vector3(0.0, eye_height, 0.0)
 
 
 func _process(delta: float) -> void:
 	_time += delta
 	rotation.y = lerp_angle(rotation.y, facing, 1.0 - exp(-3.5 * delta))
+	if _parts.is_empty():
+		# A modelled body: play its recorded walk while it is moved, and hold
+		# the upright moment of that walk while it stands.
+		if _player != null and _clip != &"" and walking != _clip_walking:
+			_clip_walking = walking
+			if walking:
+				_player.speed_scale = walk_pace / MODEL_CLIP_PACE
+			else:
+				_player.speed_scale = 0.0
+				_player.seek(MODEL_STAND_AT, true)
+		return
 
 	# Walking: the legs swing from the hip and bend at the knee, and the
 	# arms swing the other way. It eases in and out as they start and stop.
