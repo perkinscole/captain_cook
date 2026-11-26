@@ -41,7 +41,7 @@ func _to_sheet(world: Vector2) -> Vector2:
 
 
 func _draw() -> void:
-	var font := ThemeDB.fallback_font
+	var font := get_theme_default_font()
 	draw_rect(Rect2(Vector2.ZERO, size), PAPER)
 	for i in range(1, 8):
 		var f := size.x * i / 8.0
@@ -145,7 +145,7 @@ func _draw_soundings(font: Font) -> void:
 		if not detailed:
 			draw_circle(at, 1.5, ink)
 		elif fathoms < 0:
-			draw_string(font, at + Vector2(-4.0, 4.0), "–", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, PENCIL)
+			draw_string(font, at + Vector2(-4.0, 4.0), "-", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, PENCIL)
 		else:
 			var figure := str(fathoms) if s["good"] else str(fathoms) + "?"
 			draw_string(font, at + Vector2(-4.0, 4.0), figure, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, ink)

@@ -8,6 +8,7 @@ extends Node
 ## sour krout (pickled cabbage) when he could not.
 
 signal news(text: String)
+signal day_began(day: int)
 
 const DAY_SECONDS := 120.0
 const RATION_NAMES: Array[String] = ["Full allowance", "Two-thirds allowance", "Half allowance"]
@@ -41,7 +42,10 @@ func cycle_rations() -> void:
 
 func _process(delta: float) -> void:
 	var step := delta / DAY_SECONDS
+	var day_before := day()
 	days += step
+	if day() != day_before:
+		day_began.emit(day())
 
 	if greens > 0.0:
 		greens -= step

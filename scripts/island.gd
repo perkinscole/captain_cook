@@ -5,10 +5,11 @@ extends Node3D
 ## ship can run aground on it.
 
 const SAMPLES := 180        ## coastline points, one every 2 degrees
-const RINGS := 10
+const RINGS := 18
 const BASE_RADIUS := 300.0
 const RADIUS_SWING := 110.0
-const PEAK_HEIGHT := 95.0
+const PEAK_HEIGHT := 150.0
+const PALMS := 70
 const LANDMARK_EVERY := 15  ## one landmark every 15 coast points (30 degrees)
 const LANDMARK_HEIGHT := 30.0
 ## The island is a stand-in for Tahiti: the shape is made up, not the real
@@ -21,6 +22,9 @@ const LANDMARK_NAMES: Array[String] = [
 
 var coast := PackedVector2Array()      ## world-space (x, z) coastline points
 var landmarks := PackedVector2Array()  ## world-space (x, z) of each landmark
+## Set before build() to keep palms off a stretch of beach (an angle, radians).
+var keep_clear_angle: float = INF
+
 var _radii := PackedFloat32Array()
 var _heights := PackedFloat32Array()  # height of every mesh vertex, ring by ring
 
@@ -50,11 +54,13 @@ func build(noise_seed: int) -> void:
 			var z := sin(a) * _radii[i] * t
 			var h := 0.0
 			if t <= 1.0:
-				var rough := 0.75 + 0.25 * noise.get_noise_2d(x * 2.0 + 900.0, z * 2.0)
-				h = PEAK_HEIGHT * pow(1.0 - t, 1.6) * rough
+				var rough := 0.72 + 0.28 * noise.get_noise_2d(x * 2.0 + 900.0, z * 2.0)
+				# Sharp ridges running down from the peak, as on a volcanic island.
+				var ridge := 1.0 - 0.45 * absf(noise.get_noise_2d(x * 0.9, z * 0.9 + 400.0))
+				h = PEAK_HEIGHT * pow(1.0 - t, 1.9) * rough * ridge
 			else:
 				h = -(t - 1.0) * 60.0
-			st.set_color(_land_color(t))
+			st.set_color(_land_color(t + 0.05 * noise.get_noise_2d(x * 3.0, z * 3.0 - 700.0)))
 			_heights[ring * SAMPLES + i] = h
 			st.add_vertex(Vector3(x, h, z))
 	for ring in RINGS:
@@ -82,6 +88,7 @@ func build(noise_seed: int) -> void:
 	inst.material_override = mat
 	add_child(inst)
 	_build_landmarks()
+	_build_palms(noise_seed)
 
 
 func landmark_name(index: int) -> String:
@@ -156,11 +163,57 @@ func coast_radius(angle: float) -> float:
 	return lerpf(_radii[i], _radii[j], f - floorf(f))
 
 
+## Coconut palms along the shore: a trunk and a dark crown each.
+func _build_palms(palm_seed: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = palm_seed
+	var bark := StandardMaterial3D.new()
+	bark.albedo_color = Color(0.40, 0.31, 0.22)
+	bark.roughness = 1.0
+	var fronds := StandardMaterial3D.new()
+	fronds.albedo_color = Color(0.13, 0.30, 0.12)
+	fronds.roughness = 1.0
+	for k in PALMS:
+		var a := rng.randf_range(0.0, TAU)
+		if absf(wrapf(a - keep_clear_angle, -PI, PI)) < 0.2:
+			continue
+		var r := coast_radius(a) * rng.randf_range(0.86, 0.94)
+		var world := Vector2(position.x + cos(a) * r, position.z + sin(a) * r)
+		var height := rng.randf_range(7.0, 11.0)
+		var foot := Vector3(cos(a) * r, surface_height(world), sin(a) * r)
+
+		var trunk := MeshInstance3D.new()
+		var stem := CylinderMesh.new()
+		stem.top_radius = 0.16
+		stem.bottom_radius = 0.28
+		stem.height = height
+		stem.radial_segments = 6
+		stem.rings = 1
+		trunk.mesh = stem
+		trunk.material_override = bark
+		trunk.position = foot + Vector3(0.0, height * 0.5 - 0.3, 0.0)
+		trunk.rotation = Vector3(rng.randf_range(-0.12, 0.12), 0.0, rng.randf_range(-0.12, 0.12))
+		add_child(trunk)
+
+		var crown := MeshInstance3D.new()
+		var ball := SphereMesh.new()
+		ball.radius = 2.4
+		ball.height = 2.2
+		ball.radial_segments = 8
+		ball.rings = 4
+		crown.mesh = ball
+		crown.material_override = fronds
+		crown.position = foot + Vector3(0.0, height, 0.0)
+		add_child(crown)
+
+
 func _land_color(t: float) -> Color:
 	if t > 1.0:
 		return Color(0.55, 0.60, 0.45)   # shallows
-	if t > 0.88:
-		return Color(0.80, 0.72, 0.52)   # beach
-	if t > 0.35:
-		return Color(0.20, 0.36, 0.17)   # forest
-	return Color(0.38, 0.36, 0.30)       # rock
+	if t > 0.9:
+		return Color(0.20, 0.19, 0.18).lerp(Color(0.45, 0.40, 0.33), (t - 0.9) * 10.0)  # dark sand
+	if t > 0.5:
+		return Color(0.16, 0.34, 0.14)   # forest
+	if t > 0.25:
+		return Color(0.24, 0.38, 0.18)   # high slopes
+	return Color(0.36, 0.35, 0.30)       # bare rock

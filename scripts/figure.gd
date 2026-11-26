@@ -1,7 +1,7 @@
 class_name Figure
 extends Node3D
-## A placeholder person made of boxes, for testing story told through poses
-## rather than animation. It holds a named pose, eases between poses, and
+## A simple person built from rounded shapes, for telling the story through
+## poses rather than animation. It holds a named pose, eases between poses, and
 ## breathes a little so it does not look frozen. Faces -Z; origin at the feet.
 
 ## Rotations (radians) for each jointed part, plus whether the chart is in hand.
@@ -34,7 +34,10 @@ const EYE_HEIGHT := 1.62
 var coat_color := Color(0.09, 0.12, 0.25)
 var legs_color := Color(0.85, 0.82, 0.72)
 var skin_color := Color(0.80, 0.62, 0.50)
+var hair_color := Color(0.75, 0.73, 0.68)  ## officers powder their hair
+var neck_color := Color(0.92, 0.90, 0.84)  ## stock, neckerchief and waistcoat
 var wears_hat: bool = true
+var long_coat: bool = true    ## false = a seaman's short jacket
 var idle_facing: float = 0.0  ## yaw (radians) when nobody is speaking to them
 
 var facing: float = 0.0  ## yaw (radians) the figure turns toward
@@ -48,38 +51,65 @@ var _time: float = 0.0
 
 func _ready() -> void:
 	var coat := _material(coat_color)
-	var breeches := _material(legs_color)
+	var legs := _material(legs_color)
 	var skin := _material(skin_color)
+	var hair := _material(hair_color)
+	var neck := _material(neck_color)
 	var black := _material(Color(0.05, 0.05, 0.06))
 	var paper := _material(Color(0.91, 0.85, 0.70))
 
 	_sway = Node3D.new()
 	add_child(_sway)
-	_box(_sway, Vector3(0.34, 0.85, 0.22), Vector3(0.0, 0.425, 0.0), breeches)
+	for side: float in [-1.0, 1.0]:
+		_box(_sway, Vector3(0.1, 0.07, 0.25), Vector3(side * 0.09, 0.035, -0.03), black)
+		_capsule(_sway, 0.075, 0.82, Vector3(side * 0.09, 0.45, 0.0), legs)
 
 	var torso := _joint(_sway, "torso", Vector3(0.0, 0.85, 0.0))
-	_box(torso, Vector3(0.46, 0.62, 0.26), Vector3(0.0, 0.33, 0.0), coat)
-	_box(torso, Vector3(0.48, 0.34, 0.28), Vector3(0.0, -0.12, 0.0), coat)  # coat skirts
+	var body := _cylinder(torso, 0.21, 0.17, 0.56, Vector3(0.0, 0.3, 0.0), coat)
+	body.scale.z = 0.68
+	if long_coat:
+		var skirts := _cylinder(torso, 0.18, 0.27, 0.46, Vector3(0.0, -0.15, 0.0), coat)
+		skirts.scale.z = 0.72
+		_box(torso, Vector3(0.17, 0.42, 0.02), Vector3(0.0, 0.26, -0.137), neck)  # waistcoat
+	_cylinder(torso, 0.075, 0.085, 0.07, Vector3(0.0, 0.6, 0.0), neck)  # stock or neckerchief
 
 	var head := _joint(torso, "head", Vector3(0.0, 0.66, 0.0))
 	var face := MeshInstance3D.new()
 	var ball := SphereMesh.new()
-	ball.radius = 0.11
-	ball.height = 0.24
+	ball.radius = 0.105
+	ball.height = 0.25
 	face.mesh = ball
 	face.material_override = skin
 	face.position = Vector3(0.0, 0.12, 0.0)
 	head.add_child(face)
+	_box(head, Vector3(0.03, 0.05, 0.04), Vector3(0.0, 0.11, -0.11), skin)  # nose
+	var scalp := MeshInstance3D.new()
+	var cap := SphereMesh.new()
+	cap.radius = 0.112
+	cap.height = 0.22
+	scalp.mesh = cap
+	scalp.material_override = hair
+	scalp.position = Vector3(0.0, 0.15, 0.03)
+	head.add_child(scalp)
 	if wears_hat:
-		_box(head, Vector3(0.44, 0.03, 0.40), Vector3(0.0, 0.23, 0.0), black)   # hat brim
-		_box(head, Vector3(0.20, 0.09, 0.20), Vector3(0.0, 0.28, 0.0), black)   # hat crown
+		# A cocked hat: three-cornered brim and a low crown.
+		var brim := _cylinder(head, 0.27, 0.29, 0.045, Vector3(0.0, 0.235, 0.0), black)
+		(brim.mesh as CylinderMesh).radial_segments = 3
+		_cylinder(head, 0.1, 0.11, 0.09, Vector3(0.0, 0.28, 0.0), black)
 
-	var arm_l := _joint(torso, "arm_l", Vector3(-0.29, 0.58, 0.0))
-	_box(arm_l, Vector3(0.11, 0.6, 0.11), Vector3(0.0, -0.3, 0.0), coat)
-	var arm_r := _joint(torso, "arm_r", Vector3(0.29, 0.58, 0.0))
-	_box(arm_r, Vector3(0.11, 0.6, 0.11), Vector3(0.0, -0.3, 0.0), coat)
+	for side: float in [-1.0, 1.0]:
+		var arm := _joint(torso, "arm_l" if side < 0.0 else "arm_r", Vector3(side * 0.27, 0.56, 0.0))
+		_capsule(arm, 0.055, 0.6, Vector3(0.0, -0.27, 0.0), coat)
+		var hand := MeshInstance3D.new()
+		var fist := SphereMesh.new()
+		fist.radius = 0.05
+		fist.height = 0.1
+		hand.mesh = fist
+		hand.material_override = skin
+		hand.position = Vector3(0.0, -0.6, 0.0)
+		arm.add_child(hand)
 
-	_chart = _box(arm_l, Vector3(0.36, 0.015, 0.28), Vector3(0.12, -0.62, -0.06), paper)
+	_chart = _box(_parts["arm_l"], Vector3(0.36, 0.015, 0.28), Vector3(0.12, -0.62, -0.06), paper)
 	set_pose("at_ease", 0.0)
 	facing = idle_facing
 	rotation.y = facing
@@ -129,6 +159,35 @@ func _material(color: Color) -> StandardMaterial3D:
 	mat.albedo_color = color
 	mat.roughness = 0.9
 	return mat
+
+
+func _capsule(parent: Node3D, radius: float, height: float, pos: Vector3,
+		mat: Material) -> MeshInstance3D:
+	var inst := MeshInstance3D.new()
+	var mesh := CapsuleMesh.new()
+	mesh.radius = radius
+	mesh.height = height
+	inst.mesh = mesh
+	inst.material_override = mat
+	inst.position = pos
+	parent.add_child(inst)
+	return inst
+
+
+func _cylinder(parent: Node3D, top: float, bottom: float, height: float, pos: Vector3,
+		mat: Material) -> MeshInstance3D:
+	var inst := MeshInstance3D.new()
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = top
+	mesh.bottom_radius = bottom
+	mesh.height = height
+	mesh.radial_segments = 14
+	mesh.rings = 1
+	inst.mesh = mesh
+	inst.material_override = mat
+	inst.position = pos
+	parent.add_child(inst)
+	return inst
 
 
 func _box(parent: Node3D, size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:

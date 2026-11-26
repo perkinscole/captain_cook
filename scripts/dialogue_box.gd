@@ -4,6 +4,7 @@ extends ColorRect
 ## out a few letters at a time, then any choices.
 
 const LETTERS_PER_SECOND := 45.0
+const EDGE := Color(0.72, 0.56, 0.24)
 
 var dialogue: Dialogue
 
@@ -24,11 +25,11 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 8)
 	add_child(box)
 
-	_name_label = _label(box, 18, Color(0.93, 0.78, 0.45))
-	_text_label = _label(box, 21, Color(0.96, 0.93, 0.84))
+	_name_label = _label(box, 22, Color(0.93, 0.78, 0.45))
+	_text_label = _label(box, 23, Color(0.96, 0.93, 0.84))
 	_text_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_choices_label = _label(box, 19, Color(0.80, 0.88, 0.95))
-	_hint_label = _label(box, 14, Color(0.70, 0.66, 0.58))
+	_choices_label = _label(box, 21, Color(0.80, 0.88, 0.95))
+	_hint_label = _label(box, 16, Color(0.70, 0.66, 0.58))
 
 
 ## Call when the dialogue moves to a new line.
@@ -51,7 +52,7 @@ func _process(delta: float) -> void:
 		return
 
 	var view := get_viewport().get_visible_rect().size
-	size = Vector2(minf(view.x - 80.0, 900.0), 230.0)
+	size = Vector2(minf(view.x - 80.0, 940.0), 270.0)
 	position = Vector2((view.x - size.x) * 0.5, view.y - size.y - 24.0)
 
 	_shown += LETTERS_PER_SECOND * delta
@@ -72,6 +73,10 @@ func _process(delta: float) -> void:
 		_choices_label.text = ""
 		_hint_label.text = "Space  continue" if done else ""
 	_choices_label.visible = _choices_label.text != ""
+
+
+func _draw() -> void:
+	draw_rect(Rect2(Vector2.ZERO, size), EDGE, false, 2.0)
 
 
 func _label(parent: Control, font_size: int, font_color: Color) -> Label:

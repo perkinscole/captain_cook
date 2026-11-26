@@ -32,7 +32,10 @@ var sail: int = 2             ## the sail ORDERED, 0..MAX_SAIL
 var canvas: float = 0.5       ## sail area actually set, 0..1. Follows the order.
 var sail_limit: int = MAX_SAIL  ## lowered while a blown-out sail is replaced
 var rudder: float = 0.0       ## -1 (hard a-port) .. +1 (hard a-starboard)
-var sea_state: float = 0.0    ## 0 = easy swell, 1 = steep sea. Motion only.
+## How the sea is lifting and tilting her just now. Set from outside (see Sea).
+var wave_lift: float = 0.0
+var wave_pitch: float = 0.0
+var wave_roll: float = 0.0
 var leeway_deg: float = 0.0   ## how far her real track sags downwind of her heading
 var strain: float = 0.0       ## seconds spent over-pressed
 var sail_handling: float = 1.0  ## how smartly the hands work the sails, 0..1
@@ -145,17 +148,15 @@ func _physics_process(delta: float) -> void:
 	var pos := position
 	pos.x += (fwd2.x * speed + drift.x) * delta
 	pos.z += (fwd2.y * speed + drift.y) * delta
-	pos.y = (0.25 + 0.6 * sea_state) * sin(_time * 0.9)
+	pos.y = wave_lift
 
 	_update_strain(delta)
 
 	var heel := signf(rel) * sin(deg_to_rad(a)) * wind.strength * canvas * 0.012
-	var wallow := (0.012 + 0.03 * sea_state) * sin(_time * 0.7)
-	_roll = lerpf(_roll, heel + wallow, 1.0 - exp(-2.0 * delta))
-	var pitch := (0.012 + 0.035 * sea_state) * sin(_time * 1.1)
+	_roll = lerpf(_roll, heel, 1.0 - exp(-2.0 * delta))
 
 	position = pos
-	rotation = Vector3(pitch, -deg_to_rad(heading_deg), _roll)
+	rotation = Vector3(wave_pitch, -deg_to_rad(heading_deg), _roll + wave_roll)
 
 
 func _update_strain(delta: float) -> void:

@@ -20,7 +20,7 @@ func _process(_delta: float) -> void:
 func _draw() -> void:
 	if lead == null:
 		return
-	var font := ThemeDB.fallback_font
+	var font := get_theme_default_font()
 	var ready_now := lead.busy <= 0.0
 	var ink := Color(0.96, 0.93, 0.84, 1.0 if ready_now else 0.4)
 	var text := "Space  heave the lead" if ready_now else "Hauling in the line..."

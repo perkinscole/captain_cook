@@ -52,6 +52,9 @@ func build(coast_angle: float) -> void:
 	pascoe.coat_color = Color(0.45, 0.50, 0.55)
 	pascoe.legs_color = Color(0.80, 0.76, 0.66)
 	pascoe.wears_hat = false
+	pascoe.long_coat = false
+	pascoe.hair_color = Color(0.35, 0.24, 0.14)
+	pascoe.neck_color = Color(0.55, 0.14, 0.12)
 	pascoe.idle_facing = -PI * 0.75
 	_set.add_child(pascoe)
 	pascoe.position = _on_sand(Vector3(2.2, 0.0, -3.0))
@@ -78,6 +81,8 @@ static func dress_as_tupaia(figure: Figure) -> void:
 	figure.coat_color = Color(0.90, 0.85, 0.72)
 	figure.legs_color = Color(0.90, 0.85, 0.72)
 	figure.skin_color = Color(0.58, 0.40, 0.28)
+	figure.hair_color = Color(0.07, 0.06, 0.05)
+	figure.neck_color = Color(0.90, 0.85, 0.72)
 	figure.wears_hat = false
 
 

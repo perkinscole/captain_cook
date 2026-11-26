@@ -7,7 +7,8 @@ extends Node
 ## Depths are in fathoms (1 fathom = 6 feet, about 1.83 m). The line has
 ## "marks" tied on at certain fathoms; the depths in between are "deeps".
 
-signal cast_made(cry: String)
+## `voice` names the recorded line for this cry, if anyone has recorded one.
+signal cast_made(cry: String, voice: String)
 
 const FATHOM := 1.83
 const SWING_SECONDS := 1.5
@@ -50,7 +51,7 @@ func heave() -> void:
 		return
 	if ship.speed > MAX_SPEED:
 		busy = 1.0
-		cast_made.emit("Too much way on her! The lead trails astern. Shorten sail to sound.")
+		cast_made.emit("Too much way on her! Shorten sail to sound.", "lead_too_fast")
 		return
 	busy = HAUL_SECONDS
 
@@ -71,10 +72,10 @@ func heave() -> void:
 	var here := Vector2(ship.position.x, ship.position.z)
 	if fathoms > LINE_FATHOMS:
 		soundings.append({"pos": here, "fathoms": -1, "good": good})
-		cast_made.emit("No bottom with this line." + remark)
+		cast_made.emit("No bottom with this line." + remark, "lead_no_bottom")
 		return
 	soundings.append({"pos": here, "fathoms": fathoms, "good": good})
 	var cry := "By the %s %s!" % ["mark" if fathoms in MARKS else "deep", NUMBER_WORDS[fathoms]]
 	if fathoms <= 3:
 		cry += " Shoal water!"
-	cast_made.emit(cry + remark)
+	cast_made.emit(cry + remark, "lead_%d" % fathoms)

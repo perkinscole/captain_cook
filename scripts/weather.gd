@@ -29,6 +29,8 @@ var visibility: float = 1.0  ## 1 = clear, lower = you see less far
 var gloom: float = 0.0       ## 0 = bright day, 1 = dark squall sky
 var sea_state: float = 0.0   ## 0 = easy swell, 1 = steep sea
 
+var held: bool = false       ## while true the weather stays as it is
+
 var _time_left: float = 75.0  # the first fair spell, long enough to get going
 var _shift_target: float = 0.0
 var _rng := RandomNumberGenerator.new()
@@ -43,7 +45,8 @@ func state_name() -> String:
 
 
 func _process(delta: float) -> void:
-	_time_left -= delta
+	if not held:
+		_time_left -= delta
 	if _time_left <= 0.0:
 		_advance()
 

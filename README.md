@@ -78,6 +78,30 @@ still needs checking against the historical record. There is no scoring yet, and
 Control is by giving orders (you call a course and the helmsman steers). The
 first prototype also tried holding the wheel directly; giving orders was chosen.
 
+## Look, sound and interface
+
+- **Title and pause pages.** The game opens on a title page. Esc pauses and
+  shows the keys.
+- **Lessons.** Choose "Begin, with Mr Clerke" and a shipmate teaches one thing
+  at a time; each lesson ends when you have done it. T skips them. The weather
+  stays fair and the stores do not run down until the lessons are over.
+- **Interface.** A steering compass shows the heading, the wind (blue arrow),
+  the part of the compass she cannot sail into (red wedge) and the course
+  ordered (brass pointer). Panels show the ship, the crew and the stores. What
+  the hands call back appears at the bottom left. H shows the keys.
+- **Painted look.** A filter turns the picture into dabs of paint, with glowing
+  highlights and a darkened border. P turns it on and off. If the game runs
+  slowly, turn it off first.
+- **Sea.** Real swells that the ship rides, with foam and reflected sky.
+- **Models.** The ship has a rounded hull, a planked deck, a wheel, rigging,
+  bellied sails that fill the wrong way when taken aback, and a red pennant at
+  the masthead that streams downwind. People are built from rounded shapes.
+  The island has ridged peaks and palms. All of it is still made in code.
+- **Sound.** Sea, wind, creaking timbers, the ship's bell, the splash of the
+  lead, and a boatswain's pipe for orders. Every sound is synthesised by
+  `tools/make_sounds.py`, so they are stand-ins. There are no voices yet, but
+  `audio/voice/README.md` lists the lines the game will play if you record them.
+
 ## Running it
 
 1. Install [Godot 4.3 or newer](https://godotengine.org/download) (standard build, not .NET).
@@ -92,19 +116,20 @@ first prototype also tried holding the wheel directly; giving orders was chosen.
 | W / S | Make / reduce sail |
 | Space | Heave the lead (time it to the green) |
 | F | Take a bearing on the stone pillar you are looking at |
-| M | Open or put away the chart table |
-| Enter | Anchor, when nearly stopped in Matavai Bay |
-| C | Show or hide the crew and stores list |
-| R | Change rations (full, two-thirds, half) |
-| K | Serve sour krout, or stop |
-| G | Issue extra grog |
 | E | Speak with the person you are looking at |
 | Space, then 1 to 3 | Continue a conversation, then pick an answer |
-| Mouse | Look around (click to capture the mouse, Esc to free it) |
+| Enter | Anchor, when nearly stopped in Matavai Bay |
+| M | Open or put away the chart table |
+| C | Show or hide the crew and stores list |
+| R / K / G | Change rations / serve sour krout / issue extra grog |
+| P | Painted look on or off |
+| H | Show the keys |
+| T | Skip the lessons |
+| Mouse | Look around |
+| Esc | Pause |
 
 A square-rigger cannot sail closer than about 50 degrees to the wind. To get
-upwind, zig-zag (tack) either side of it. The arrow on the chart shows which
-way the wind is blowing.
+upwind, zig-zag (tack) either side of it.
 
 ## Layout
 
@@ -113,6 +138,11 @@ Systems are kept separate so each can be swapped:
 | File | What it owns |
 | --- | --- |
 | `scripts/wind.gd` | Wind direction and strength over time |
+| `scripts/sea.gd`, `shaders/ocean.gdshader` | The waves, and how high the water is under the ship |
+| `shaders/painterly.gdshader` | The painted look |
+| `scripts/sound_board.gd`, `audio/`, `tools/make_sounds.py` | Sounds, and how they are made |
+| `scripts/ui/` | Theme, compass, panels, title and pause pages |
+| `scripts/tutorial.gd` | The lessons |
 | `scripts/weather.gd` | Fair weather, squalls and mist; drives the wind and visibility |
 | `scripts/ship.gd` | Ship movement from wind, sail and rudder |
 | `scripts/control_mode.gd`, `orders_mode.gd` | How the ship is steered (giving orders) |
@@ -121,14 +151,14 @@ Systems are kept separate so each can be swapped:
 | `scripts/lead_line.gd`, `lead_gauge.gd` | Heaving the lead, and the timing gauge |
 | `scripts/charting.gd` | Coast sketched, bearings and fixes, accuracy, the ship's track |
 | `scripts/chart_view.gd` | Drawing the chart |
-| `scripts/ship_visual.gd`, `deck_camera.gd` | Placeholder ship and first-person view |
+| `scripts/ship_visual.gd`, `deck_camera.gd` | The ship model and first-person view |
 | `scripts/supplies.gd` | Stores, rations and the passing of days |
 | `scripts/crew.gd`, `hand.gd` | The named hands, their health and morale, and how well each job is done |
 | `story/crew_lines.gd` | What each hand says, as data |
 | `scripts/landfall.gd` | The anchorage, the set on the beach, and switching between deck and shore |
 | `story/tahiti_scenes.gd` | The landfall at Matavai Bay, as data |
 | `scripts/dialogue.gd`, `dialogue_box.gd` | Running a conversation, and showing it |
-| `scripts/figure.gd` | Placeholder posed character |
+| `scripts/figure.gd` | Posed character |
 | `scripts/story_state.gd` | What the story remembers (Cook's trust, flags) |
 | `story/cook_scenes.gd` | Conversations with Cook, as data |
 | `scripts/main.gd` | Builds the scene and wires the above together |
