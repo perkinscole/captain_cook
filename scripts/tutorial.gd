@@ -27,12 +27,14 @@ const STEPS: Array[Dictionary] = [
 			+ "to the table, and M again to put it away. The coast draws itself in "
 			+ "pencil as we sail in sight of it."},
 	{"id": "lead", "text": "There is coral round this island, and you cannot see it "
-			+ "in thick weather. Press S until we are under nine knots, then Space to "
-			+ "heave the lead. Let go when the marker is in the green."},
-	{"id": "bearing", "text": "Pencil is only a sketch. To fix the coast in ink, look "
-			+ "straight at one of the stone pillars on the headlands and press F. "
-			+ "Then sail on a good way and press F on the same pillar again. "
-			+ "Where the two lines cross is where it truly lies."},
+			+ "in thick weather. Press S until we are under nine knots. Then press Space "
+			+ "to set Pascoe swinging the lead, and Space again to let go when the "
+			+ "marker is in the green."},
+	{"id": "bearing", "text": "Pencil is only a sketch. To fix the coast in ink, press "
+			+ "Q for your spyglass and find a headland: a rock, a bluff or a clump of "
+			+ "palms, marked with its name. Put the cross on it and press F. Then sail "
+			+ "on a good way and do the same again. Where the two lines cross is "
+			+ "where it truly lies."},
 	{"id": "talk", "text": "A crew works better for an officer who knows them. Look "
 			+ "at one of the hands, or at the captain, and press E."},
 	{"id": "stores", "text": "Last thing. Press C for the crew and the stores. Fresh "

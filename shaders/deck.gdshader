@@ -1,4 +1,5 @@
 shader_type spatial;
+render_mode cull_disabled;
 
 // Deck planking: boards running fore and aft, with dark caulked seams.
 

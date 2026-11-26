@@ -17,11 +17,30 @@ var hands: Array[Hand] = []
 
 
 func _ready() -> void:
-	_add("Amos Trull", "quartermaster, at the wheel", "helm", 1.2, 72.0)
-	_add("Will Pascoe", "leadsman", "lead", 1.0, 58.0)
-	_add("Ned Harker", "boatswain's mate", "sails", 0.8, 70.0)
-	_add("Nicholas Young", "ship's boy, at the masthead", "lookout", 0.9, 82.0)
-	_add("John Thompson", "ship's cook", "cook", 1.1, 68.0)
+	var trull := _add("Amos Trull", "quartermaster, at the wheel", "helm", 1.2, 72.0)
+	trull.skin = Color(0.70, 0.50, 0.38)
+	trull.hair = Color(0.74, 0.74, 0.72)
+	trull.jacket = Color(0.30, 0.22, 0.16)
+	trull.kerchief = Color(0.14, 0.20, 0.36)
+	trull.beard = true
+	var pascoe := _add("Will Pascoe", "leadsman", "lead", 1.0, 58.0)
+	pascoe.hair = Color(0.35, 0.24, 0.14)
+	pascoe.jacket = Color(0.42, 0.48, 0.55)
+	var harker := _add("Ned Harker", "boatswain's mate", "sails", 0.8, 70.0)
+	harker.skin = Color(0.74, 0.55, 0.42)
+	harker.hair = Color(0.10, 0.09, 0.08)
+	harker.jacket = Color(0.18, 0.28, 0.30)
+	harker.kerchief = Color(0.70, 0.55, 0.20)
+	var young := _add("Nicholas Young", "ship's boy, at the masthead", "lookout", 0.9, 82.0)
+	young.skin = Color(0.86, 0.68, 0.56)
+	young.hair = Color(0.72, 0.52, 0.28)
+	young.jacket = Color(0.55, 0.30, 0.22)
+	young.kerchief = Color(0.20, 0.35, 0.30)
+	young.boy = true
+	var thompson := _add("John Thompson", "ship's cook", "cook", 1.1, 68.0)
+	thompson.hair = Color(0.38, 0.36, 0.34)
+	thompson.jacket = Color(0.72, 0.68, 0.60)
+	thompson.kerchief = Color(0.90, 0.88, 0.82)
 
 
 func hand_for(role: String) -> Hand:
@@ -109,7 +128,8 @@ func report() -> String:
 	return "\n".join(lines)
 
 
-func _add(full_name: String, title: String, role: String, frailty: float, morale: float) -> void:
+func _add(full_name: String, title: String, role: String, frailty: float,
+		morale: float) -> Hand:
 	var h := Hand.new()
 	h.full_name = full_name
 	h.title = title
@@ -117,3 +137,4 @@ func _add(full_name: String, title: String, role: String, frailty: float, morale
 	h.frailty = frailty
 	h.morale = morale
 	hands.append(h)
+	return h

@@ -33,8 +33,8 @@ And there is work to do while you sail:
   clear weather the masthead lookout may spot pale water dead ahead; in mist or
   a squall you only have the lead. Strike a reef and she has to be hauled off.
 - **Bearings.** Coast you sail past is only sketched by eye, in pencil, and is
-  a little out of place. Stone pillars mark twelve headlands. Look at one and
-  press F to take a bearing, then take another from further along. Where the
+  a little out of place. Twelve headlands each have a landmark. Raise the
+  spyglass, put the cross on one and press F, then do it again from further along. Where the
   two lines cross fixes the headland, and the coast between fixed headlands
   turns to ink. Lines that cross near a right angle give the best fix.
 - **The chart table.** M opens the full chart, with headland names, sounding
@@ -92,7 +92,15 @@ first prototype also tried holding the wheel directly; giving orders was chosen.
 - **Painted look.** A filter turns the picture into dabs of paint, with glowing
   highlights and a darkened border. P turns it on and off. If the game runs
   slowly, turn it off first.
-- **Sea.** Real swells that the ship rides, with foam and reflected sky.
+- **Sea and sky.** Real swells that the ship rides, with foam and reflected
+  sky; surf along the shore; drifting clouds that thicken in a squall; a sun
+  that climbs and sinks through the day; fog with depth that catches the
+  light; and seabirds over the island and in the ship's wake.
+- **Spyglass.** Q (or holding the right mouse button) raises a spyglass. The
+  headlands you can take a bearing on are picked out by name: rocks, bluffs
+  and clumps of tall palms. Put the cross on one and press F.
+- **Crew cards.** C shows each hand as a card with a drawn face that changes
+  with their health and spirits.
 - **Models.** The ship has a rounded hull, a planked deck, a wheel, rigging,
   bellied sails that fill the wrong way when taken aback, and a red pennant at
   the masthead that streams downwind. People are built from rounded shapes.
@@ -114,8 +122,9 @@ first prototype also tried holding the wheel directly; giving orders was chosen.
 | --- | --- |
 | A / D | Order the course one compass point to port / starboard |
 | W / S | Make / reduce sail |
-| Space | Heave the lead (time it to the green) |
-| F | Take a bearing on the stone pillar you are looking at |
+| Space, then Space | Start the lead swinging, then let go in the green |
+| Q, or hold right mouse | Raise the spyglass |
+| F | Take a bearing on the landmark under the spyglass cross |
 | E | Speak with the person you are looking at |
 | Space, then 1 to 3 | Continue a conversation, then pick an answer |
 | Enter | Anchor, when nearly stopped in Matavai Bay |
@@ -141,7 +150,9 @@ Systems are kept separate so each can be swapped:
 | `scripts/sea.gd`, `shaders/ocean.gdshader` | The waves, and how high the water is under the ship |
 | `shaders/painterly.gdshader` | The painted look |
 | `scripts/sound_board.gd`, `audio/`, `tools/make_sounds.py` | Sounds, and how they are made |
-| `scripts/ui/` | Theme, compass, panels, title and pause pages |
+| `scripts/ui/` | Theme, compass, panels, spyglass, crew cards, title and pause pages |
+| `scripts/atmosphere.gd`, `shaders/sky.gdshader` | Sky, sun, clouds and fog |
+| `scripts/birds.gd`, `shaders/surf.gdshader` | Seabirds, and surf on the shore |
 | `scripts/tutorial.gd` | The lessons |
 | `scripts/weather.gd` | Fair weather, squalls and mist; drives the wind and visibility |
 | `scripts/ship.gd` | Ship movement from wind, sail and rudder |

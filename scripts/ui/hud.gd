@@ -7,8 +7,9 @@ extends Control
 
 const HELP := """A / D        order the course a point to port / starboard
 W / S        make sail / shorten sail
-Space        heave the lead (under 9 knots)
-F               take a bearing on the stone pillar you are looking at
+Space        heave the lead, and Space again to let go (under 9 knots)
+Q               raise or lower the spyglass (or hold the right mouse button)
+F               take a bearing on the landmark in the spyglass
 E               speak with the person you are looking at
 Enter       anchor, when nearly stopped in Matavai Bay
 M              open or close the chart table
@@ -43,7 +44,7 @@ var _day: Label
 var _health: ProgressBar
 var _morale: ProgressBar
 var _stores: Label
-var _crew_detail: Label
+var _cards: CrewCards
 var _help_panel: PanelContainer
 var _left: Control
 var _right: Control
@@ -83,8 +84,6 @@ func _ready() -> void:
 	_health = _bar(crew_box, "Health", UiTheme.GREEN)
 	_morale = _bar(crew_box, "Spirits", UiTheme.BRASS)
 	_stores = _text(crew_box, 16, 300.0)
-	_crew_detail = _text(crew_box, 16, 300.0)
-	_crew_detail.visible = false
 
 	# Top middle: messages, and under them the lesson in hand.
 	var middle := VBoxContainer.new()
@@ -131,6 +130,15 @@ func _ready() -> void:
 	_help_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_help_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	add_child(_help_panel)
+	_cards = CrewCards.new()
+	_cards.crew = crew
+	_cards.supplies = supplies
+	_cards.set_anchors_and_offsets_preset(Control.PRESET_CENTER, Control.PRESET_MODE_MINSIZE)
+	_cards.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_cards.grow_vertical = Control.GROW_DIRECTION_BOTH
+	add_child(_cards)
+	_cards.visible = false
+
 	var help_text := _text(_help_panel, 20, 0.0)
 	help_text.text = HELP
 	_help_panel.visible = false
@@ -176,8 +184,8 @@ func toggle_help() -> void:
 
 
 func toggle_crew() -> bool:
-	_crew_detail.visible = not _crew_detail.visible
-	return _crew_detail.visible
+	_cards.visible = not _cards.visible
+	return _cards.visible
 
 
 ## Hides the sailing read-outs while people are talking.
@@ -186,6 +194,7 @@ func set_quiet(quiet: bool) -> void:
 	_right.visible = not quiet
 	_calls.visible = not quiet
 	if quiet:
+		_cards.visible = false
 		_help_panel.visible = false
 		_prompt_panel.visible = false
 
@@ -233,8 +242,6 @@ func _process(delta: float) -> void:
 	_stores.text = "Fresh food  %.1f days\nSalt provisions  %.1f days" % [
 		supplies.greens + (supplies.krout if supplies.serving_krout else 0.0),
 		supplies.provisions / Supplies.RATION_RATE[supplies.rations]]
-	if _crew_detail.visible:
-		_crew_detail.text = "\n" + supplies.report() + "\n\n" + crew.report()
 
 
 func _warning_text() -> String:

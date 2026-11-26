@@ -1,17 +1,21 @@
 class_name LeadLine
 extends Node
 ## Heaving the lead: a weight on a marked line, swung forward and dropped to
-## measure the depth. The leadsman swings it like a pendulum and you call the
-## release. Let go at the top of the forward swing for a true reading.
+## measure the depth. One press starts the leadsman swinging it; a second
+## press lets go. Let go at the top of the forward swing for a true reading.
 ##
 ## Depths are in fathoms (1 fathom = 6 feet, about 1.83 m). The line has
 ## "marks" tied on at certain fathoms; the depths in between are "deeps".
 
 ## `voice` names the recorded line for this cry, if anyone has recorded one.
 signal cast_made(cry: String, voice: String)
+signal swing_started
+
+enum State { IDLE, SWINGING, HAULING }
 
 const FATHOM := 1.83
 const SWING_SECONDS := 1.5
+const MAX_SWINGS := 4.0       ## after this many swings he lets go by himself, badly
 const HAUL_SECONDS := 2.5     ## hauling the line back in before the next cast
 const MAX_SPEED := 4.5        ## m/s. Faster than this the lead cannot reach bottom.
 const LINE_FATHOMS := 20
@@ -28,11 +32,11 @@ var seabed: Seabed
 ## Every sounding taken: { "pos": Vector2, "fathoms": int, "good": bool }.
 ## fathoms is -1 for "no bottom".
 var soundings: Array[Dictionary] = []
-var swing: float = 0.0   ## -1 (aft) .. +1 (forward). Release near +1.
+var state: State = State.IDLE
+var swing: float = -1.0  ## -1 (aft) .. +1 (forward). Release near +1.
 var skill: float = 1.0   ## how good the leadsman is today, 0..1
-var busy: float = 0.0    ## seconds until the lead can be hove again
 
-var _time: float = 0.0
+var _clock: float = 0.0  # seconds spent in the present state
 var _rng := RandomNumberGenerator.new()
 
 
@@ -41,19 +45,36 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	_time += delta
-	busy = maxf(0.0, busy - delta)
-	swing = sin(_time * TAU / SWING_SECONDS)
+	_clock += delta
+	match state:
+		State.SWINGING:
+			swing = -cos(_clock * TAU / SWING_SECONDS)
+			if _clock > SWING_SECONDS * MAX_SWINGS:
+				swing = 0.0  # his arm has tired: a slack cast
+				_release()
+		State.HAULING:
+			if _clock >= HAUL_SECONDS:
+				state = State.IDLE
 
 
+## The one key: starts the swing, or lets go if he is already swinging.
 func heave() -> void:
-	if busy > 0.0:
-		return
-	if ship.speed > MAX_SPEED:
-		busy = 1.0
-		cast_made.emit("Too much way on her! Shorten sail to sound.", "lead_too_fast")
-		return
-	busy = HAUL_SECONDS
+	match state:
+		State.IDLE:
+			if ship.speed > MAX_SPEED:
+				cast_made.emit("Too much way on her! Shorten sail to sound.", "lead_too_fast")
+				return
+			state = State.SWINGING
+			_clock = 0.0
+			swing = -1.0
+			swing_started.emit()
+		State.SWINGING:
+			_release()
+
+
+func _release() -> void:
+	state = State.HAULING
+	_clock = 0.0
 
 	var true_depth := seabed.depth_at(Vector2(ship.position.x, ship.position.z))
 	var measured := true_depth

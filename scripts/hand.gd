@@ -11,6 +11,14 @@ var frailty: float = 1.0     ## how hard scurvy hits them
 var sick: bool = false       ## too ill to stand their watch
 var last_talked_day: int = 0
 
+## How they look, for the figure on deck and the portrait on their card.
+var skin := Color(0.80, 0.62, 0.50)
+var hair := Color(0.30, 0.22, 0.15)
+var jacket := Color(0.35, 0.35, 0.40)
+var kerchief := Color(0.55, 0.14, 0.12)
+var beard: bool = false
+var boy: bool = false
+
 
 func health_word() -> String:
 	if sick:

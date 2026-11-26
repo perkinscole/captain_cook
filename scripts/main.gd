@@ -19,16 +19,14 @@ const DECK_Y := ShipVisual.DECK_Y
 const COOK_POSITION := Vector3(2.6, DECK_Y, 8.0)  # quarterdeck, starboard side
 const COOK_IDLE_FACING := -0.9                    # looking out over the bow
 const MATAVAI_ANGLE := -1.74  # where the bay lies: on the north side, just west of Point Venus
-const AIM_CONE := 0.994  # cosine of how near the middle of the view a landmark must be
-
-const FAIR_SKY_TOP := Color(0.16, 0.30, 0.52)
-const FAIR_HORIZON := Color(0.88, 0.72, 0.52)
-const FOUL_SKY_TOP := Color(0.09, 0.11, 0.14)
-const FOUL_HORIZON := Color(0.33, 0.35, 0.36)
+const AIM_CONE := 0.9996  # cosine of how near the cross-hairs a landmark must be
+const NAKED_EYE_FOV := 75.0
+const SPYGLASS_FOV := 14.0
 
 var wind: Wind
 var weather: Weather
 var sea: Sea
+var atmosphere: Atmosphere
 var ship: Ship
 var island: Island
 var seabed: Seabed
@@ -54,11 +52,10 @@ var cook_in_view: bool = false
 var hand_in_view: Hand = null
 var landmark_in_view: int = -1
 var chart_large: bool = false
+var spyglass_up: bool = false
 var groundings: int = 0
 
-var _sky_mat: ProceduralSkyMaterial
-var _env: Environment
-var _sun: DirectionalLight3D
+var _spyglass: Spyglass
 var _paint: ColorRect
 var _lead_gauge: LeadGauge
 var _last_safe := Vector2.ZERO
@@ -75,7 +72,8 @@ var _was_shivering: bool = false
 
 
 func _ready() -> void:
-	_build_sky_and_sun()
+	atmosphere = Atmosphere.new()
+	add_child(atmosphere)
 
 	sound = SoundBoard.new()
 	add_child(sound)
@@ -94,6 +92,11 @@ func _ready() -> void:
 	island.keep_clear_angle = wrapf(MATAVAI_ANGLE, 0.0, TAU)
 	add_child(island)
 	island.build(1769)
+	var gulls := Birds.new()
+	gulls.count = 14
+	gulls.spread = Vector2(240.0, 430.0)
+	gulls.heights = Vector2(20.0, 70.0)
+	add_child(gulls)
 
 	seabed = Seabed.new()
 	seabed.island = island
@@ -125,12 +128,19 @@ func _ready() -> void:
 	ship.add_child(camera)
 	camera.make_current()
 	landfall.deck_camera = camera
+	var followers := Birds.new()
+	followers.count = 4
+	followers.spread = Vector2(25.0, 70.0)
+	followers.heights = Vector2(22.0, 40.0)
+	followers.follow = ship
+	add_child(followers)
 
 	lead = LeadLine.new()
 	lead.ship = ship
 	lead.seabed = seabed
 	add_child(lead)
 	lead.cast_made.connect(_on_cast_made)
+	lead.swing_started.connect(func() -> void: hud.callout("Pascoe, in the chains", "Heave!"))
 
 	charting = Charting.new()
 	charting.ship = ship
@@ -165,12 +175,11 @@ func _ready() -> void:
 	crew.news.connect(_on_news)
 	supplies.set_process(false)  # the clock starts when the lessons end
 	crew.set_process(false)
-	_place_hand("helm", Vector3(0.0, DECK_Y, 13.6), 0.0, Color(0.30, 0.22, 0.16))
-	_place_hand("lead", Vector3(3.3, DECK_Y, 2.0), -PI * 0.5, Color(0.42, 0.48, 0.55))
-	_place_hand("sails", Vector3(-1.7, DECK_Y, -2.0), PI, Color(0.18, 0.28, 0.30))
-	_place_hand("cook", Vector3(1.6, DECK_Y, -8.5), PI, Color(0.70, 0.66, 0.58))
-	_place_hand("lookout", Vector3(0.0, DECK_Y + 30.0 * ShipVisual.TOP_AT + 0.08, 0.85), 0.0,
-			Color(0.55, 0.30, 0.22))
+	_place_hand("helm", Vector3(0.0, DECK_Y, 13.6), 0.0)
+	_place_hand("lead", Vector3(3.3, DECK_Y, 2.0), -PI * 0.5)
+	_place_hand("sails", Vector3(-1.7, DECK_Y, -2.0), PI)
+	_place_hand("cook", Vector3(1.6, DECK_Y, -8.5), PI)
+	_place_hand("lookout", Vector3(0.0, DECK_Y + 30.0 * ShipVisual.TOP_AT + 0.08, 0.85), 0.0)
 
 	dialogue = Dialogue.new()
 	dialogue.story = story
@@ -223,20 +232,30 @@ func _physics_process(delta: float) -> void:
 func _process(delta: float) -> void:
 	sea.sea_state = weather.sea_state
 	sea.follow(ship.position)
-	_apply_weather_look()
+	atmosphere.apply(weather.gloom, weather.visibility, wind.from_deg,
+			fposmod(supplies.days * 0.5, 1.0), delta)
+	sea.storm = weather.gloom
+	sea.sky_color = atmosphere.horizon
 	sound.set_ambience(wind.strength, absf(ship.speed), weather.sea_state)
 	_sail_sounds()
 
 	var talking := dialogue.active
+	if talking:
+		spyglass_up = false
+	var ease := 1.0 - exp(-10.0 * delta)
+	camera.fov = lerpf(camera.fov, SPYGLASS_FOV if spyglass_up else NAKED_EYE_FOV, ease)
+	camera.sensitivity_scale = camera.fov / NAKED_EYE_FOV
+	_spyglass.raised = spyglass_up
 	if talking and _speaker != null:
 		landfall.active_camera().ease_toward(_speaker.eye_position(), 1.0 - exp(-3.0 * delta))
 
 	# What is the player looking at, and what could they do about it?
 	var to_cook := (ship.to_global(cook.eye_position()) - camera.global_position).normalized()
-	cook_in_view = to_cook.dot(-camera.global_transform.basis.z) > 0.93
-	hand_in_view = null if cook_in_view else _find_hand_in_view()
+	cook_in_view = not spyglass_up and to_cook.dot(-camera.global_transform.basis.z) > 0.93
+	hand_in_view = null if cook_in_view or spyglass_up else _find_hand_in_view()
 	var someone := cook_in_view or hand_in_view != null
-	landmark_in_view = -1 if someone else _find_landmark_in_view()
+	landmark_in_view = _find_landmark_in_view() if spyglass_up else -1
+	_spyglass.aimed = landmark_in_view
 	var may_anchor := not story.has_flag("landfall_done") and landfall.can_anchor(ship)
 	if not _told_of_bay and not story.has_flag("landfall_done") and landfall.is_near(ship):
 		_told_of_bay = true
@@ -257,6 +276,8 @@ func _process(delta: float) -> void:
 			hud.set_prompt("E", "speak with %s" % hand_in_view.full_name)
 		elif landmark_in_view >= 0:
 			hud.set_prompt("F", "take a bearing on %s" % island.landmark_name(landmark_in_view))
+		elif spyglass_up:
+			hud.set_prompt("Q", "lower the spyglass.  Put the cross on a named landmark.")
 		else:
 			hud.set_prompt("", "")
 
@@ -269,7 +290,7 @@ func _process(delta: float) -> void:
 		chart_view.position = (view - chart_view.size) * 0.5
 	else:
 		chart_view.position = view - chart_view.size - Vector2(16.0, 16.0)
-	_lead_gauge.position = Vector2(16.0, view.y - 60.0)
+	_lead_gauge.position = Vector2((view.x - LeadGauge.BAR.x) * 0.5, view.y - 120.0)
 
 
 ## Lifts and tilts the ship with the water under her bow, stern and sides.
@@ -301,8 +322,11 @@ func _sail_sounds() -> void:
 # --- keys and mouse --------------------------------------------------------
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_RIGHT:
+			spyglass_up = event.pressed and not dialogue.active  # hold to look
+		elif event.pressed:
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		if not dialogue.active:
 			camera.look(event.relative)
@@ -334,8 +358,13 @@ func _sailing_key(key: Key) -> void:
 			_order_sail(ship.sail - 1)
 		KEY_SPACE:
 			lead.heave()
+		KEY_Q:
+			spyglass_up = not spyglass_up
+			sound.play("tick")
 		KEY_F:
-			if landmark_in_view >= 0:
+			if not spyglass_up:
+				_say("Raise the spyglass first (Q), and put the cross on a landmark.", 5.0)
+			elif landmark_in_view >= 0:
 				var fixed_before := charting.fixed_count()
 				_say(charting.take_bearing(landmark_in_view), 7.0)
 				sound.play("tick")
@@ -558,7 +587,8 @@ func _on_day_began(_day: int) -> void:
 
 
 func _on_cast_made(cry: String, voice: String) -> void:
-	sound.play("splash", -4.0)
+	if voice != "lead_too_fast":
+		sound.play("splash", -4.0)
 	hud.callout("Pascoe, in the chains", cry)
 	sound.say(voice)
 	tutorial.note("sounding")
@@ -642,70 +672,22 @@ func _find_landmark_in_view() -> int:
 
 # --- building the scene ----------------------------------------------------
 
-func _place_hand(role: String, at: Vector3, facing: float, jacket: Color) -> void:
+func _place_hand(role: String, at: Vector3, facing: float) -> void:
 	var h := crew.hand_for(role)
 	var figure := Figure.new()
 	figure.position = at
 	figure.idle_facing = facing
-	figure.coat_color = jacket
+	figure.coat_color = h.jacket
 	figure.legs_color = Color(0.80, 0.76, 0.66)
-	figure.hair_color = Color(0.30, 0.22, 0.15)
-	figure.neck_color = Color(0.55, 0.14, 0.12)
+	figure.skin_color = h.skin
+	figure.hair_color = h.hair
+	figure.neck_color = h.kerchief
+	if h.boy:
+		figure.scale = Vector3(0.8, 0.8, 0.8)
 	figure.wears_hat = false
 	figure.long_coat = false
 	ship.add_child(figure)
 	_hand_figures[h] = figure
-
-
-func _apply_weather_look() -> void:
-	var g := weather.gloom
-	_sky_mat.sky_top_color = FAIR_SKY_TOP.lerp(FOUL_SKY_TOP, g)
-	_sky_mat.sky_horizon_color = FAIR_HORIZON.lerp(FOUL_HORIZON, g)
-	_sky_mat.ground_horizon_color = _sky_mat.sky_horizon_color
-	_sun.light_energy = lerpf(1.5, 0.3, g)
-	_env.fog_light_color = _sky_mat.sky_horizon_color
-	_env.fog_density = lerpf(0.0004, 0.006, clampf(1.0 - weather.visibility, 0.0, 1.0))
-	sea.storm = g
-	sea.sky_color = _sky_mat.sky_horizon_color
-
-
-func _build_sky_and_sun() -> void:
-	_sky_mat = ProceduralSkyMaterial.new()
-	_sky_mat.sky_top_color = FAIR_SKY_TOP
-	_sky_mat.sky_horizon_color = FAIR_HORIZON
-	_sky_mat.ground_bottom_color = Color(0.02, 0.08, 0.14)
-	_sky_mat.ground_horizon_color = FAIR_HORIZON
-	var sky := Sky.new()
-	sky.sky_material = _sky_mat
-
-	_env = Environment.new()
-	_env.background_mode = Environment.BG_SKY
-	_env.sky = sky
-	_env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	_env.ambient_light_energy = 0.8
-	_env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	_env.tonemap_white = 6.0
-	# Whites that glow: bright things bleed light into what is around them.
-	_env.glow_enabled = true
-	_env.glow_intensity = 0.7
-	_env.glow_bloom = 0.12
-	_env.glow_hdr_threshold = 0.9
-	_env.fog_enabled = true
-	_env.fog_density = 0.0004
-	_env.fog_light_color = FAIR_HORIZON
-
-	var world_env := WorldEnvironment.new()
-	world_env.environment = _env
-	add_child(world_env)
-
-	# A low sun: long shadows and warm light, as in the paintings.
-	_sun = DirectionalLight3D.new()
-	_sun.rotation_degrees = Vector3(-22.0, -125.0, 0.0)
-	_sun.light_color = Color(1.0, 0.86, 0.66)
-	_sun.light_energy = 1.5
-	_sun.shadow_enabled = true
-	_sun.directional_shadow_max_distance = 250.0
-	add_child(_sun)
 
 
 func _build_ui() -> void:
@@ -739,6 +721,13 @@ func _build_ui() -> void:
 	hud.crew = crew
 	hud.supplies = supplies
 	root.add_child(hud)
+
+	_spyglass = Spyglass.new()
+	_spyglass.camera = camera
+	_spyglass.island = island
+	_spyglass.charting = charting
+	root.add_child(_spyglass)
+	root.move_child(_spyglass, 0)  # under the read-outs, over the picture
 
 	_lead_gauge = LeadGauge.new()
 	_lead_gauge.lead = lead
