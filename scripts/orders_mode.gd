@@ -5,6 +5,7 @@ extends ControlMode
 const POINT_DEG := 11.25  # one point of the compass
 
 var ordered_deg: float = 0.0
+var helm_skill: float = 1.0  ## how quickly the helmsman answers, 0..1
 
 
 func mode_name() -> String:
@@ -38,4 +39,4 @@ func steer(ship: Ship, delta: float) -> void:
 	var wanted := clampf(error / 12.0, -1.0, 1.0)
 	if ship.has_sternway():
 		wanted = -wanted  # the helmsman knows to reverse the wheel going astern
-	ship.rudder = move_toward(ship.rudder, wanted, 2.0 * delta)
+	ship.rudder = move_toward(ship.rudder, wanted * helm_skill, 2.0 * helm_skill * delta)

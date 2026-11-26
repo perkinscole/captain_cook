@@ -35,6 +35,7 @@ var rudder: float = 0.0       ## -1 (hard a-port) .. +1 (hard a-starboard)
 var sea_state: float = 0.0    ## 0 = easy swell, 1 = steep sea. Motion only.
 var leeway_deg: float = 0.0   ## how far her real track sags downwind of her heading
 var strain: float = 0.0       ## seconds spent over-pressed
+var sail_handling: float = 1.0  ## how smartly the hands work the sails, 0..1
 var hove_to: bool = false     ## lying stopped with a topsail backed, e.g. to talk
 
 var _time: float = 0.0
@@ -104,7 +105,7 @@ func _physics_process(delta: float) -> void:
 	# The hands take time to make or shorten sail. Taking it in is quicker.
 	var wanted_canvas := SAIL_AREA[sail]
 	var rate := 0.12 if wanted_canvas > canvas else 0.2
-	canvas = move_toward(canvas, wanted_canvas, rate * delta)
+	canvas = move_toward(canvas, wanted_canvas, rate * sail_handling * delta)
 
 	# Drive from the sails. Aback, the wind pushes her slowly astern.
 	var push := HULL_SPEED * (1.0 - exp(-wind.strength * canvas * 1.3 / 8.0))

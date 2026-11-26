@@ -40,6 +40,22 @@ And there is work to do while you sail:
 - **The chart table.** M opens the full chart, with headland names, sounding
   figures and an accuracy score.
 
+The ship now has a crew and stores:
+
+- **Five named hands** stand about the ship: the quartermaster at the wheel
+  behind you, the leadsman at the starboard side, the boatswain's mate by the
+  mainmast, the cook forward, and the ship's boy at the masthead. Look at one
+  and press E for a word; what they say tells you how the lower deck is
+  feeling. Each has health and morale, and does his job worse when either is
+  low: slower sail handling, a sluggish helm, wilder soundings, a lookout who
+  sees less far.
+- **Days pass** (one every two minutes). Fresh greens last three days. After
+  that scurvy sets in unless sour krout is served, which the men dislike.
+  Salt provisions last eight days, longer on short rations, which the men
+  dislike more. An extra issue of grog lifts spirits, three times only.
+- **So time matters.** Staying out to fix every headland makes a truer chart
+  and a sicker, sourer crew.
+
 There is also one story scene, to test telling the story through poses and
 dialogue instead of animation. Captain Cook stands on the quarterdeck, to your
 right. Look at him and press E to speak. Once the survey is complete he asks to
@@ -47,7 +63,7 @@ see the chart and puts one question to you; your answer changes how he regards
 you and how the finished chart is drawn. The ship lies hove to while you talk.
 
 Everything is placeholder shapes, and the dialogue is placeholder writing that
-still needs checking against the historical record. There is no crew or scoring yet.
+still needs checking against the historical record. There is no scoring yet, and nobody dies.
 
 Control is by giving orders (you call a course and the helmsman steers). The
 first prototype also tried holding the wheel directly; giving orders was chosen.
@@ -67,6 +83,10 @@ first prototype also tried holding the wheel directly; giving orders was chosen.
 | Space | Heave the lead (time it to the green) |
 | F | Take a bearing on the stone pillar you are looking at |
 | M | Open or put away the chart table |
+| C | Show or hide the crew and stores list |
+| R | Change rations (full, two-thirds, half) |
+| K | Serve sour krout, or stop |
+| G | Issue extra grog |
 | E | Speak with the person you are looking at |
 | Space, then 1 to 3 | Continue a conversation, then pick an answer |
 | Mouse | Look around (click to capture the mouse, Esc to free it) |
@@ -91,6 +111,9 @@ Systems are kept separate so each can be swapped:
 | `scripts/charting.gd` | Coast sketched, bearings and fixes, accuracy, the ship's track |
 | `scripts/chart_view.gd` | Drawing the chart |
 | `scripts/ship_visual.gd`, `deck_camera.gd` | Placeholder ship and first-person view |
+| `scripts/supplies.gd` | Stores, rations and the passing of days |
+| `scripts/crew.gd`, `hand.gd` | The named hands, their health and morale, and how well each job is done |
+| `story/crew_lines.gd` | What each hand says, as data |
 | `scripts/dialogue.gd`, `dialogue_box.gd` | Running a conversation, and showing it |
 | `scripts/figure.gd` | Placeholder posed character |
 | `scripts/story_state.gd` | What the story remembers (Cook's trust, flags) |

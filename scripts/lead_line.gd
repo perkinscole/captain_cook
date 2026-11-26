@@ -28,6 +28,7 @@ var seabed: Seabed
 ## fathoms is -1 for "no bottom".
 var soundings: Array[Dictionary] = []
 var swing: float = 0.0   ## -1 (aft) .. +1 (forward). Release near +1.
+var skill: float = 1.0   ## how good the leadsman is today, 0..1
 var busy: float = 0.0    ## seconds until the lead can be hove again
 
 var _time: float = 0.0
@@ -58,12 +59,12 @@ func heave() -> void:
 	var good := swing > 0.8
 	var remark := ""
 	if good:
-		measured += _rng.randf_range(-0.3, 0.3)
+		measured += _rng.randf_range(-0.3, 0.3) / skill
 	elif swing > 0.3:
-		measured += _rng.randf_range(-1.0, 1.0) * (1.0 + 0.15 * true_depth)
+		measured += _rng.randf_range(-1.0, 1.0) * (1.0 + 0.15 * true_depth) / skill
 		remark = "  (a fair cast)"
 	else:
-		measured += _rng.randf_range(-1.0, 1.0) * (2.0 + 0.4 * true_depth)
+		measured += _rng.randf_range(-1.0, 1.0) * (2.0 + 0.4 * true_depth) / skill
 		remark = "  (a slack cast: do not trust it)"
 
 	var fathoms := roundi(maxf(measured, 0.0) / FATHOM)

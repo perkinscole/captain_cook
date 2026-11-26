@@ -2,8 +2,8 @@ extends Node3D
 ## Chart one island, then show the chart to Captain Cook.
 ## Builds the whole scene in code and wires the separate systems together:
 ## Weather -> Wind -> Ship <- ControlMode, Ship + Island -> Charting -> ChartView,
-## Seabed -> LeadLine for soundings, and Dialogue -> DialogueBox + Figure
-## for the story scene.
+## Seabed -> LeadLine for soundings, Supplies -> Crew -> how well each job is
+## done, and Dialogue -> DialogueBox + Figure for talk.
 
 const OCEAN_SHADER := preload("res://shaders/ocean.gdshader")
 const START_POSITION := Vector3(0.0, 0.0, 700.0)
@@ -22,16 +22,20 @@ var ship: Ship
 var island: Island
 var seabed: Seabed
 var lead: LeadLine
+var supplies: Supplies
+var crew: Crew
 var charting: Charting
 var chart_view: ChartView
 var camera: DeckCamera
 
-var control: ControlMode
+var control: OrdersMode
 var story := StoryState.new()
 var dialogue: Dialogue
 var dialogue_box: DialogueBox
 var cook: Figure
 var cook_in_view: bool = false
+var hand_in_view: Hand = null
+var crew_panel_open: bool = false
 var landmark_in_view: int = -1
 var groundings: int = 0
 var chart_large: bool = false
@@ -49,6 +53,10 @@ var _prompt_label: Label
 var _lead_gauge: LeadGauge
 var _last_safe := Vector2.ZERO
 var _lookout_quiet: float = 0.0
+var _aground_lately: float = 0.0
+var _speaker: Figure
+var _hand_figures: Dictionary = {}  # Hand -> Figure
+var _crew_label: Label
 
 
 func _ready() -> void:
@@ -115,8 +123,21 @@ func _ready() -> void:
 
 	cook = Figure.new()
 	cook.position = COOK_POSITION
-	cook.facing = COOK_IDLE_FACING
+	cook.idle_facing = COOK_IDLE_FACING
 	ship.add_child(cook)
+
+	supplies = Supplies.new()
+	add_child(supplies)
+	supplies.news.connect(_on_news)
+	crew = Crew.new()
+	crew.supplies = supplies
+	add_child(crew)
+	crew.news.connect(_on_news)
+	_place_hand("helm", Vector3(0.0, 3.15, 13.6), 0.0, Color(0.30, 0.22, 0.16))
+	_place_hand("lead", Vector3(3.3, 3.15, 2.0), -PI * 0.5, Color(0.45, 0.50, 0.55))
+	_place_hand("sails", Vector3(-1.7, 3.15, -2.0), PI, Color(0.20, 0.30, 0.28))
+	_place_hand("cook", Vector3(1.6, 3.15, -8.5), PI, Color(0.70, 0.66, 0.58))
+	_place_hand("lookout", Vector3(0.0, 21.0, 0.7), 0.0, Color(0.55, 0.30, 0.22))
 
 	dialogue = Dialogue.new()
 	dialogue.story = story
@@ -134,6 +155,10 @@ func _physics_process(delta: float) -> void:
 		control.steer(ship, delta)
 	ship.sea_state = weather.sea_state
 	charting.visibility = weather.visibility
+	ship.sail_handling = crew.efficiency("sails")
+	control.helm_skill = crew.efficiency("helm")
+	lead.skill = crew.efficiency("lead")
+	_aground_lately = maxf(0.0, _aground_lately - delta)
 
 	var here := Vector2(ship.position.x, ship.position.z)
 	var depth := seabed.depth_at(here)
@@ -144,8 +169,9 @@ func _physics_process(delta: float) -> void:
 
 	# In clear weather the masthead lookout can see pale water ahead.
 	_lookout_quiet -= delta
-	if _lookout_quiet <= 0.0 and weather.visibility > 0.7 and ship.speed > 0.5:
-		var ahead := here + Compass.to_vector(ship.heading_deg) * 110.0
+	var sharp := crew.efficiency("lookout")  # a sick or miserable lookout sees less far
+	if _lookout_quiet <= 0.0 and weather.visibility > 0.7 and ship.speed > 0.5 and sharp > 0.5:
+		var ahead := here + Compass.to_vector(ship.heading_deg) * 120.0 * sharp
 		if seabed.depth_at(ahead) < Seabed.SHIP_DRAUGHT + 1.0:
 			_lookout_quiet = 10.0
 			_say("Masthead: \"Pale water dead ahead!\"", 5.0)
@@ -157,13 +183,17 @@ func _process(delta: float) -> void:
 
 	var to_cook := (ship.to_global(cook.eye_position()) - camera.global_position).normalized()
 	cook_in_view = to_cook.dot(-camera.global_transform.basis.z) > 0.93
-	if dialogue.active:
-		camera.ease_toward(cook.eye_position(), 1.0 - exp(-3.0 * delta))
+	hand_in_view = null if cook_in_view else _find_hand_in_view()
+	if dialogue.active and _speaker != null:
+		camera.ease_toward(_speaker.eye_position(), 1.0 - exp(-3.0 * delta))
 	_hud.visible = not dialogue.active
-	landmark_in_view = -1 if cook_in_view else _find_landmark_in_view()
-	_prompt_label.visible = not dialogue.active and (cook_in_view or landmark_in_view >= 0)
+	var someone := cook_in_view or hand_in_view != null
+	landmark_in_view = -1 if someone else _find_landmark_in_view()
+	_prompt_label.visible = not dialogue.active and (someone or landmark_in_view >= 0)
 	if cook_in_view:
 		_prompt_label.text = "E  speak with Captain Cook"
+	elif hand_in_view != null:
+		_prompt_label.text = "E  speak with %s" % hand_in_view.full_name
 	elif landmark_in_view >= 0:
 		_prompt_label.text = "F  take a bearing on %s" % island.landmark_name(landmark_in_view)
 	_lead_gauge.visible = not dialogue.active
@@ -179,12 +209,14 @@ func _process(delta: float) -> void:
 		_sail_line(),
 		_warning_line(),
 		"Hull: %s" % ("sound" if groundings == 0 else "strained (aground %d times)" % groundings),
+		_crew_line(),
 		"",
 		"[%s]  %s" % [mode.mode_name(), mode.status(ship)],
 		"",
 		mode.help(),
 		"W / S  make / reduce sail",
 		"Space  heave the lead (slow down first)      F  take a bearing on a stone pillar",
+		"C  crew and stores      R  change rations      K  sour krout      G  extra grog",
 		"M  chart table      Mouse  look      E  speak      Esc  free mouse",
 	])
 	_hud.text = "\n".join(lines)
@@ -196,6 +228,10 @@ func _process(delta: float) -> void:
 	var side := minf(view.x, view.y) - 80.0 if chart_large else 280.0
 	chart_view.size = Vector2(side, side)
 	_lead_gauge.position = Vector2(16.0, view.y - 60.0)
+	_crew_label.visible = crew_panel_open and not dialogue.active
+	_crew_label.position = Vector2(view.x - 400.0, 70.0)
+	if _crew_label.visible:
+		_crew_label.text = supplies.report() + "\n\n" + crew.report()
 	if chart_large:
 		chart_view.position = (view - chart_view.size) * 0.5
 	else:
@@ -223,9 +259,30 @@ func _sailing_key(key: Key) -> void:
 		KEY_E:
 			if cook_in_view:
 				_speak_with_cook()
+			elif hand_in_view != null:
+				_speak_with_hand(hand_in_view)
+		KEY_C:
+			crew_panel_open = not crew_panel_open
+		KEY_R:
+			supplies.cycle_rations()
+			_say("Rations: %s." % Supplies.RATION_NAMES[supplies.rations], 4.0)
+		KEY_K:
+			supplies.serving_krout = not supplies.serving_krout
+			_say("Sour krout will be served with dinner." if supplies.serving_krout
+					else "No more sour krout at dinner.", 4.0)
+		KEY_G:
+			if supplies.grog > 0:
+				supplies.grog -= 1
+				crew.cheer(12.0)
+				_say("An extra issue of grog. The people give a cheer.", 5.0)
+			else:
+				_say("There is no grog to spare.", 4.0)
 		KEY_F:
 			if landmark_in_view >= 0:
+				var fixed_before := charting.fixed_count()
 				_say(charting.take_bearing(landmark_in_view), 7.0)
+				if charting.fixed_count() > fixed_before:
+					crew.cheer(1.5)  # the work is going well, and they can see it
 		KEY_SPACE:
 			lead.heave()
 		KEY_M:
@@ -250,9 +307,21 @@ func _dialogue_key(key: Key) -> void:
 		dialogue.choose(key - KEY_1)
 
 
+func _speak_with_hand(h: Hand) -> void:
+	_speaker = _hand_figures[h]
+	_speaker.facing = camera.yaw_to_face_me(_speaker.position)
+	crew.noticed(h)
+	var line := CrewLines.line_for(h, supplies, weather.visibility < 0.6, _aground_lately > 0.0)
+	dialogue.start({
+		"start": "line",
+		"nodes": {"line": {"who": "%s, %s" % [h.full_name, h.title], "text": line}},
+	})
+
+
 func _speak_with_cook() -> void:
 	chart_large = false
 	ship.hove_to = true
+	_speaker = cook
 	cook.facing = camera.yaw_to_face_me(cook.position)
 	if not charting.complete:
 		dialogue.start(CookScenes.ORDERS)
@@ -268,18 +337,23 @@ func _speak_with_cook() -> void:
 
 func _on_dialogue_line() -> void:
 	dialogue_box.refresh()
-	cook.set_pose(dialogue.pose)
+	if _speaker != null:
+		_speaker.set_pose(dialogue.pose)
 
 
 func _on_dialogue_finished() -> void:
 	ship.hove_to = false
-	cook.facing = COOK_IDLE_FACING
-	cook.set_pose("at_ease")
+	if _speaker != null:
+		_speaker.facing = _speaker.idle_facing
+		_speaker.set_pose("at_ease")
+	if _speaker != cook:
+		return
 	chart_view.dot_guesses = story.has_flag("chart_dotted")
 	if story.has_flag("chart_shown") and not story.has_flag("chart_scene_done"):
 		story.flags["chart_scene_done"] = true
 		chart_large = true
 		if story.has_flag("chart_dotted"):
+			crew.cheer(3.0)
 			_say("The doubtful coast is pricked in with dots.  (M to put the chart away)", 12.0)
 		else:
 			_say("The chart stands as you drew it.  (M to put the chart away)", 12.0)
@@ -292,12 +366,58 @@ func _on_chart_completed() -> void:
 			20.0)
 
 
+func _on_news(text: String) -> void:
+	_say(text, 8.0)
+
+
+func _crew_line() -> String:
+	var mood := "in good heart"
+	if crew.average_morale() < 35.0:
+		mood = "sullen"
+	elif crew.average_morale() < 55.0:
+		mood = "grumbling"
+	var text := "Day %d    The people are %s" % [supplies.day(), mood]
+	if crew.sick_count() > 0:
+		text += ", %d sick" % crew.sick_count()
+	if not supplies.has_fresh_food():
+		text += "    No fresh food!"
+	return text
+
+
+func _place_hand(role: String, at: Vector3, facing: float, coat: Color) -> void:
+	var h := crew.hand_for(role)
+	var figure := Figure.new()
+	figure.position = at
+	figure.idle_facing = facing
+	figure.coat_color = coat
+	figure.legs_color = Color(0.80, 0.76, 0.66)
+	figure.wears_hat = false
+	ship.add_child(figure)
+	_hand_figures[h] = figure
+
+
+func _find_hand_in_view() -> Hand:
+	var eye := camera.global_position
+	var looking := -camera.global_transform.basis.z
+	var best: Hand = null
+	var best_dot := 0.975
+	for h: Hand in _hand_figures:
+		var figure: Figure = _hand_figures[h]
+		var d := (ship.to_global(figure.eye_position()) - eye).normalized().dot(looking)
+		if d > best_dot:
+			best_dot = d
+			best = h
+	return best
+
+
 func _on_cast_made(cry: String) -> void:
 	_say("Leadsman: \"%s\"" % cry, 6.0)
 
 
 func _run_aground() -> void:
 	groundings += 1
+	_aground_lately = 90.0
+	crew.cheer(-8.0)
 	ship.run_aground(Vector3(_last_safe.x, 0.0, _last_safe.y))
 	ship.heading_deg = Compass.from_vector(seabed.deeper_direction(_last_safe))
 	ship.set_sail(1)
@@ -328,6 +448,8 @@ func _on_weather_changed(state: Weather.State) -> void:
 		Weather.State.SQUALL:
 			_say("The squall is on us! Mind the wind shift.", 6.0)
 		Weather.State.CLEARING:
+			if ship.sail_limit == Ship.MAX_SAIL:
+				crew.cheer(3.0)  # came through it with nothing carried away
 			_say("It is blowing over.", 5.0)
 		Weather.State.MIST:
 			_say("Mist is closing in. You must stand closer in to fix the coast.", 8.0)
@@ -336,6 +458,7 @@ func _on_weather_changed(state: Weather.State) -> void:
 
 
 func _on_sail_carried_away() -> void:
+	crew.cheer(-4.0)
 	_say("A sail has blown out of its bolt-ropes! She is down to topsails.", 8.0)
 
 
@@ -472,6 +595,9 @@ func _build_ui() -> void:
 	dialogue_box = DialogueBox.new()
 	dialogue_box.dialogue = dialogue
 	layer.add_child(dialogue_box)
+
+	_crew_label = _label(15)
+	layer.add_child(_crew_label)
 
 	_lead_gauge = LeadGauge.new()
 	_lead_gauge.lead = lead

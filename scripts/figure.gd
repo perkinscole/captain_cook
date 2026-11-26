@@ -30,6 +30,12 @@ const POSES := {
 }
 const EYE_HEIGHT := 1.62
 
+## Set these before adding the figure to the scene.
+var coat_color := Color(0.09, 0.12, 0.25)
+var legs_color := Color(0.85, 0.82, 0.72)
+var wears_hat: bool = true
+var idle_facing: float = 0.0  ## yaw (radians) when nobody is speaking to them
+
 var facing: float = 0.0  ## yaw (radians) the figure turns toward
 
 var _sway: Node3D
@@ -40,8 +46,8 @@ var _time: float = 0.0
 
 
 func _ready() -> void:
-	var coat := _material(Color(0.09, 0.12, 0.25))
-	var breeches := _material(Color(0.85, 0.82, 0.72))
+	var coat := _material(coat_color)
+	var breeches := _material(legs_color)
 	var skin := _material(Color(0.80, 0.62, 0.50))
 	var black := _material(Color(0.05, 0.05, 0.06))
 	var paper := _material(Color(0.91, 0.85, 0.70))
@@ -63,8 +69,9 @@ func _ready() -> void:
 	face.material_override = skin
 	face.position = Vector3(0.0, 0.12, 0.0)
 	head.add_child(face)
-	_box(head, Vector3(0.44, 0.03, 0.40), Vector3(0.0, 0.23, 0.0), black)   # hat brim
-	_box(head, Vector3(0.20, 0.09, 0.20), Vector3(0.0, 0.28, 0.0), black)   # hat crown
+	if wears_hat:
+		_box(head, Vector3(0.44, 0.03, 0.40), Vector3(0.0, 0.23, 0.0), black)   # hat brim
+		_box(head, Vector3(0.20, 0.09, 0.20), Vector3(0.0, 0.28, 0.0), black)   # hat crown
 
 	var arm_l := _joint(torso, "arm_l", Vector3(-0.29, 0.58, 0.0))
 	_box(arm_l, Vector3(0.11, 0.6, 0.11), Vector3(0.0, -0.3, 0.0), coat)
@@ -73,6 +80,7 @@ func _ready() -> void:
 
 	_chart = _box(arm_l, Vector3(0.36, 0.015, 0.28), Vector3(0.12, -0.62, -0.06), paper)
 	set_pose("at_ease", 0.0)
+	facing = idle_facing
 	rotation.y = facing
 
 
