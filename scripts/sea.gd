@@ -77,6 +77,13 @@ func follow(centre: Vector3) -> void:
 	_next_anchor = Vector2(centre.x, centre.z)
 
 
+## Tells the sea where the ship is, so that it is not drawn inside her.
+func set_hull(at: Vector3, heading_deg: float) -> void:
+	var h := deg_to_rad(heading_deg)
+	_mat.set_shader_parameter("hull", Vector4(at.x, at.z, sin(h), cos(h)))
+	_mat.set_shader_parameter("has_hull", true)
+
+
 ## Height of the water (metres above the calm level) at a world position.
 func height_at(x: float, z: float) -> float:
 	# The waves push water sideways as well as up, so first find which bit

@@ -9,6 +9,7 @@ signal footfall
 const WALK_SPEED := 2.3
 const RUN_SPEED := 4.2
 const EYE_HEIGHT := 1.65
+const STOOPED := 1.5   ## below decks, where the beams are low
 const STRIDE := 0.75   ## metres between footfalls
 
 var camera: DeckCamera
@@ -19,6 +20,7 @@ var walked: float = 0.0           ## metres walked in all
 
 var _stride: float = 0.0
 var _bob: float = 0.0
+var _eye: float = EYE_HEIGHT
 
 
 func _physics_process(delta: float) -> void:
@@ -49,7 +51,8 @@ func _physics_process(delta: float) -> void:
 			_stride = 0.0
 			footfall.emit()
 	_bob = lerpf(_bob, 0.035 * sin(_stride / STRIDE * PI) if moving else 0.0, 0.3)
-	camera.position = feet + Vector3(0.0, EYE_HEIGHT + _bob, 0.0)
+	_eye = lerpf(_eye, STOOPED if ShipLayout.is_below(feet) else EYE_HEIGHT, 0.1)
+	camera.position = feet + Vector3(0.0, _eye + _bob, 0.0)
 
 
 ## Puts you somewhere at once, e.g. when you are called to the quarterdeck.

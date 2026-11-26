@@ -9,7 +9,9 @@ extends RefCounted
 ##
 ## She has three levels open to the sky: a raised forecastle at the bow, the
 ## low waist amidships, and a raised quarterdeck aft. Under the quarterdeck,
-## at the level of the waist, is the great cabin.
+## at the level of the waist, is the great cabin. Under the waist and the
+## forecastle is the lower deck, where the people eat and sleep, reached by a
+## ladder through a hatch in the waist.
 
 const LENGTH := 31.0
 const BOW_Z := -16.0
@@ -22,6 +24,20 @@ const QUARTERDECK_Y := 5.25
 const FORECASTLE_BREAK_Z := -7.5   ## where the forecastle ends and the waist begins
 const QUARTERDECK_BREAK_Z := 4.0   ## where the waist ends and the quarterdeck begins
 const BULWARK := 1.05              ## height of the rail above the deck
+const LOWER_Y := 1.1               ## the lower deck
+const LOWER_FORE_Z := -11.0        ## how far forward and aft the lower deck runs
+const LOWER_AFT_Z := 3.6
+## The hatch and ladder down to the lower deck: off to port, head aft.
+const COMPANION_X := -1.3
+const COMPANION_HALF_WIDTH := 0.45
+const COMPANION_FOOT_Z := 1.5
+const COMPANION_HEAD_Z := 3.5
+## Where the sick lie in their hammocks on the lower deck (x, z).
+const HAMMOCKS: Array[Vector2] = [
+	Vector2(-2.4, -9.8), Vector2(-2.4, -7.9), Vector2(2.4, -7.6),
+	Vector2(2.4, 0.4), Vector2(-2.4, 0.4),
+]
+const GALLEY := Vector3(0.6, LOWER_Y, -8.2)   ## where the cook stands at his stove
 
 ## Ladders: how far off the centre line, and where their feet stand.
 const QUARTERDECK_LADDER_X := 2.6
@@ -53,6 +69,18 @@ const OBSTACLES: Array[Vector4] = [
 	Vector4(0.0, 12.6, 0.75, QUARTERDECK_Y),    # wheel and binnacle
 	Vector4(0.0, 11.6, 1.05, WAIST_Y),          # chart table in the great cabin
 	Vector4(-2.4, 6.0, 0.7, WAIST_Y),           # the captain's desk
+	Vector4(0.0, 0.0, 0.6, LOWER_Y),            # mainmast, below
+	Vector4(0.0, -9.0, 0.55, LOWER_Y),          # foremast, below
+	Vector4(1.5, -9.9, 0.95, LOWER_Y),          # the galley stove
+	Vector4(-2.4, -5.5, 0.9, LOWER_Y),          # mess tables
+	Vector4(2.4, -5.5, 0.9, LOWER_Y),
+	Vector4(-2.4, -2.5, 0.9, LOWER_Y),
+	Vector4(2.4, -2.5, 0.9, LOWER_Y),
+	Vector4(-2.4, -9.8, 0.55, LOWER_Y),         # hammocks
+	Vector4(-2.4, -7.9, 0.55, LOWER_Y),
+	Vector4(2.4, -7.6, 0.55, LOWER_Y),
+	Vector4(2.4, 0.4, 0.55, LOWER_Y),
+	Vector4(-2.4, 0.4, 0.55, LOWER_Y),
 ]
 
 
@@ -82,6 +110,17 @@ static func is_in_cabin(feet: Vector3) -> bool:
 	return feet.z > QUARTERDECK_BREAK_Z and feet.y < WAIST_Y + 1.0
 
 
+## Is this spot on the lower deck (or on the ladder down to it)?
+static func is_below(feet: Vector3) -> bool:
+	return feet.y < WAIST_Y - 0.6
+
+
+## Is (x, z) over the open hatch that leads below?
+static func is_over_companion(x: float, z: float) -> bool:
+	return absf(x - COMPANION_X) < COMPANION_HALF_WIDTH \
+			and z >= COMPANION_FOOT_Z and z <= COMPANION_HEAD_Z
+
+
 ## The height of the floor a person at height `y` could stand on at (x, z),
 ## or NAN if there is nothing there to stand on.
 static func floor_at(x: float, z: float, y: float) -> float:
@@ -97,8 +136,14 @@ static func floor_at(x: float, z: float, y: float) -> float:
 				and z <= FORECASTLE_LADDER_FOOT_Z and z >= FORECASTLE_BREAK_Z:
 			floors.append(lerpf(WAIST_Y, FORECASTLE_Y,
 					inverse_lerp(FORECASTLE_LADDER_FOOT_Z, FORECASTLE_BREAK_Z, z)))
-	if z >= FORECASTLE_BREAK_Z:
+	if is_over_companion(x, z):
+		floors.append(lerpf(LOWER_Y, WAIST_Y,
+				inverse_lerp(COMPANION_FOOT_Z, COMPANION_HEAD_Z, z)))
+	elif z >= FORECASTLE_BREAK_Z:
 		floors.append(WAIST_Y)   # the waist, and aft of it the great cabin
+	# The lower deck. The hull is narrower down there.
+	if z >= LOWER_FORE_Z and z <= LOWER_AFT_Z and absf(x) < half_breadth(z) * 0.92 - 0.55:
+		floors.append(LOWER_Y)
 	if z <= FORECASTLE_BREAK_Z:
 		floors.append(FORECASTLE_Y)
 	if z >= QUARTERDECK_BREAK_Z:

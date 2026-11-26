@@ -40,6 +40,8 @@ var charting: Charting
 var landfall: Landfall
 var camera: DeckCamera
 var player: Player
+var topmen: Topmen
+var effects: DeckEffects
 var control: OrdersMode
 var story := StoryState.new()
 var dialogue: Dialogue
@@ -73,6 +75,9 @@ var _tupaia_aboard: Figure
 var _told_of_bay: bool = false
 var _sail_settled: bool = true
 var _was_shivering: bool = false
+var _in_hammock: Dictionary = {}    # Hand -> which hammock they are lying in
+var _station: Dictionary = {}       # Hand -> where they stand when well
+var _spray_wait: float = 0.0
 
 
 func _ready() -> void:
@@ -128,6 +133,10 @@ func _ready() -> void:
 	var visual := ShipVisual.new()
 	visual.ship = ship
 	ship.add_child(visual)
+	topmen = Topmen.new()
+	topmen.visual = visual
+	topmen.ship = ship
+	ship.add_child(topmen)
 
 	camera = DeckCamera.new()
 	camera.fov = 75.0
@@ -191,9 +200,16 @@ func _ready() -> void:
 	_place_hand("helm", Vector3(0.0, QD_Y, 13.6), 0.0)
 	_place_hand("lead", Vector3(3.3, DECK_Y, -0.3), -PI * 0.5)
 	_place_hand("sails", Vector3(-1.7, DECK_Y, -2.0), PI)
-	_place_hand("cook", Vector3(0.0, DECK_Y, -6.9), PI)
+	_place_hand("cook", ShipLayout.GALLEY, PI)
 	_place_hand("lookout", Vector3(0.0, DECK_Y + 30.0 * ShipVisual.TOP_AT + 0.08, 0.85), 0.0)
 
+	(_hand_figures[crew.hand_for("helm")] as Figure).idle_pose = "helm"
+	(_hand_figures[crew.hand_for("helm")] as Figure).rest()
+	effects = DeckEffects.new()
+	effects.ship = ship
+	effects.lead = lead
+	effects.lead_station = _station[crew.hand_for("lead")]
+	ship.add_child(effects)
 	player.people.append(cook.position)
 	for h: Hand in _hand_figures:
 		player.people.append((_hand_figures[h] as Figure).position)
@@ -221,7 +237,8 @@ func _physics_process(delta: float) -> void:
 	if not dialogue.active:
 		control.steer(ship, delta)
 	charting.visibility = weather.visibility
-	ship.sail_handling = crew.efficiency("sails")
+	ship.sail_handling = crew.efficiency("sails") * topmen.readiness()
+	topmen.skill = crew.efficiency("sails")
 	control.helm_skill = crew.efficiency("helm")
 	lead.skill = crew.efficiency("lead")
 	_aground_lately = maxf(0.0, _aground_lately - delta)
@@ -249,6 +266,8 @@ func _physics_process(delta: float) -> void:
 func _process(delta: float) -> void:
 	sea.sea_state = weather.sea_state
 	sea.follow(ship.position)
+	sea.set_hull(ship.position, ship.heading_deg)
+	_tend_the_sick()
 	atmosphere.apply(weather.gloom, weather.visibility, wind.from_deg,
 			fposmod(supplies.days * 0.5, 1.0), delta)
 	sea.storm = weather.gloom
@@ -260,7 +279,13 @@ func _process(delta: float) -> void:
 	player.can_move = not talking
 	if player.walked > 8.0:
 		tutorial.note("walked")
-	var below := 1.0 if ShipLayout.is_in_cabin(player.feet) else 0.0
+	var below := 0.0
+	if ShipLayout.is_below(player.feet):
+		below = 1.0
+	elif ShipLayout.is_in_cabin(player.feet):
+		below = 0.85
+	var raining := weather.state == Weather.State.SQUALL or weather.state == Weather.State.CLEARING
+	effects.rain(raining and below < 0.5, camera.position)
 	atmosphere.shelter = lerpf(atmosphere.shelter, below, 1.0 - exp(-3.0 * delta))
 	if talking:
 		spyglass_up = false
@@ -329,6 +354,14 @@ func _ride_the_waves(delta: float) -> void:
 	ship.wave_lift = lerpf(ship.wave_lift, (bow + stern + starboard + port) * 0.2, ease)
 	ship.wave_pitch = lerpf(ship.wave_pitch, atan2(bow - stern, 26.0) * 0.8, ease)
 	ship.wave_roll = lerpf(ship.wave_roll, atan2(starboard - port, 8.0) * 0.35, ease)
+
+	# When her bow drives down into a sea, it throws spray.
+	_spray_wait -= delta
+	var bow_deck := ship.wave_lift + sin(ship.wave_pitch) * 13.0
+	if _spray_wait <= 0.0 and bow - bow_deck > 0.45 and ship.speed > 2.5:
+		_spray_wait = 1.5
+		effects.burst()
+		sound.play("splash", -10.0, 0.8)
 
 
 func _sail_sounds() -> void:
@@ -438,6 +471,7 @@ func _order_sail(level: int) -> void:
 	if ship.sail == before:
 		return
 	tutorial.note("sail")
+	topmen.send_aloft(before, ship.sail)
 	var making := ship.sail > before
 	hud.callout("Harker, boatswain's mate", "%s! %s it is." % [
 		"Hands aloft, make sail" if making else "Hands aloft, shorten sail",
@@ -570,12 +604,9 @@ func _on_dialogue_line() -> void:
 func _on_dialogue_finished() -> void:
 	ship.hove_to = false
 	for id: String in _cast:
-		var figure: Figure = _cast[id]
-		figure.facing = figure.idle_facing
-		figure.set_pose("at_ease")
+		(_cast[id] as Figure).rest()
 	if _speaker != null:
-		_speaker.facing = _speaker.idle_facing
-		_speaker.set_pose("at_ease")
+		_speaker.rest()
 	if _scene == "landfall":
 		_finish_landfall()
 	if _scene != "cook":
@@ -663,6 +694,23 @@ func _say(text: String, seconds: float) -> void:
 	hud.notify(text, seconds)
 
 
+## Moves a hand who has fallen sick to a hammock on the lower deck, and
+## back to his station when he is well again.
+func _tend_the_sick() -> void:
+	for h: Hand in _hand_figures:
+		var figure: Figure = _hand_figures[h]
+		if h.sick and not _in_hammock.has(h):
+			var slot := _in_hammock.size() % ShipLayout.HAMMOCKS.size()
+			var bed := ShipLayout.HAMMOCKS[slot]
+			_in_hammock[h] = slot
+			figure.lie_down(true)
+			figure.position = Vector3(bed.x, ShipLayout.LOWER_Y + 0.95, bed.y - 0.85)
+		elif not h.sick and _in_hammock.has(h):
+			_in_hammock.erase(h)
+			figure.lie_down(false)
+			figure.position = _station[h]
+
+
 # --- finding things in view ------------------------------------------------
 
 func _find_hand_in_view() -> Hand:
@@ -719,6 +767,7 @@ func _place_hand(role: String, at: Vector3, facing: float) -> void:
 	figure.long_coat = false
 	ship.add_child(figure)
 	_hand_figures[h] = figure
+	_station[h] = at
 
 
 func _build_ui() -> void:

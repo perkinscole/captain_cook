@@ -44,7 +44,7 @@ The ship now has a crew and stores:
 
 - **Five named hands** stand about the ship: the quartermaster at the wheel
   behind you, the leadsman at the starboard side, the boatswain's mate by the
-  mainmast, the cook forward, and the ship's boy at the masthead. Walk up to one, look at him
+  mainmast, the cook at his stove on the lower deck, and the ship's boy at the masthead. Walk up to one, look at him
   and press E for a word (the boy aloft you hail from the deck); what they say tells you how the lower deck is
   feeling. Each has health and morale, and does his job worse when either is
   low: slower sail handling, a sluggish helm, wilder soundings, a lookout who
@@ -114,6 +114,16 @@ first prototype also tried holding the wheel directly; giving orders was chosen.
   fill the wrong way when taken aback, a pennant that streams downwind and the
   red ensign at the stern. Proportions are stretched a little so there is room
   to walk. People are built from rounded shapes. All of it is made in code.
+- **Things that move.** Order sail and six topmen run to the shrouds, climb
+  to the yard and lay out along it; the sail does not move until they are
+  there, then it is let fall from the yard or gathered up into a furl. The
+  wheel turns under the helmsman's hands, the lead swings from the chains, spray
+  comes over the bow when she drives into a sea, rain falls in a squall, and
+  people on deck glance about them.
+- **Below decks.** A hatch in the waist, to port by the quarterdeck ladder,
+  leads down to the lantern-lit lower deck: mess tables and sea chests, the
+  galley stove with the cook at it, casks, and hammocks. A hand who falls sick
+  is laid in a hammock there until he is well.
 - **Sound.** Sea, wind, creaking timbers, the ship's bell, the splash of the
   lead, and a boatswain's pipe for orders. Every sound is synthesised by
   `tools/make_sounds.py`, so they are stand-ins. There are no voices yet, but
@@ -176,6 +186,8 @@ Systems are kept separate so each can be swapped:
 | `scripts/ship_layout.gd` | The plan of the ship: decks, ladders and what is in the way |
 | `scripts/ship_visual.gd` | The ship model, built from that plan |
 | `scripts/player.gd`, `deck_camera.gd` | Walking the deck, and the first-person view |
+| `scripts/topmen.gd` | The hands who climb to work the sails |
+| `scripts/deck_effects.gd` | Spray, rain and the swinging lead |
 | `scripts/supplies.gd` | Stores, rations and the passing of days |
 | `scripts/crew.gd`, `hand.gd` | The named hands, their health and morale, and how well each job is done |
 | `story/crew_lines.gd` | What each hand says, as data |

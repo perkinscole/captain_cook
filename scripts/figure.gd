@@ -23,6 +23,22 @@ const POSES := {
 		"torso": Vector3(-0.06, 0.0, 0.0), "head": Vector3(-0.4, 0.0, 0.0),
 		"arm_l": Vector3(1.0, 0.0, 0.2), "arm_r": Vector3(1.25, 0.0, -0.45), "chart": true,
 	},
+	"helm": {
+		"torso": Vector3.ZERO, "head": Vector3.ZERO,
+		"arm_l": Vector3(1.2, 0.0, 0.25), "arm_r": Vector3(1.2, 0.0, -0.25), "chart": false,
+	},
+	"climb": {
+		"torso": Vector3.ZERO, "head": Vector3(0.3, 0.0, 0.0),
+		"arm_l": Vector3(2.6, 0.0, 0.1), "arm_r": Vector3(2.1, 0.0, -0.1), "chart": false,
+	},
+	"haul": {
+		"torso": Vector3(-0.45, 0.0, 0.0), "head": Vector3(-0.2, 0.0, 0.0),
+		"arm_l": Vector3(1.9, 0.0, 0.2), "arm_r": Vector3(1.9, 0.0, -0.2), "chart": false,
+	},
+	"swing": {
+		"torso": Vector3(-0.1, 0.0, 0.0), "head": Vector3.ZERO,
+		"arm_l": Vector3(0.3, 0.0, 0.2), "arm_r": Vector3(1.0, 0.0, -0.9), "chart": false,
+	},
 	"offer": {
 		"torso": Vector3.ZERO, "head": Vector3.ZERO,
 		"arm_l": Vector3(1.3, 0.0, 0.0), "arm_r": Vector3(-0.4, 0.0, -0.25), "chart": true,
@@ -39,6 +55,8 @@ var neck_color := Color(0.92, 0.90, 0.84)  ## stock, neckerchief and waistcoat
 var wears_hat: bool = true
 var long_coat: bool = true    ## false = a seaman's short jacket
 var idle_facing: float = 0.0  ## yaw (radians) when nobody is speaking to them
+var idle_pose: String = "at_ease"  ## the pose they go back to
+var lying: bool = false       ## laid in a hammock
 
 var facing: float = 0.0  ## yaw (radians) the figure turns toward
 
@@ -47,6 +65,8 @@ var _parts: Dictionary = {}
 var _chart: MeshInstance3D
 var _tween: Tween
 var _time: float = 0.0
+var _glance: float = 0.0      # where the head is idly turned
+var _glance_wait: float = 2.0
 
 
 func _ready() -> void:
@@ -110,7 +130,7 @@ func _ready() -> void:
 		arm.add_child(hand)
 
 	_chart = _box(_parts["arm_l"], Vector3(0.36, 0.015, 0.28), Vector3(0.12, -0.62, -0.06), paper)
-	set_pose("at_ease", 0.0)
+	set_pose(idle_pose, 0.0)
 	facing = idle_facing
 	rotation.y = facing
 
@@ -134,8 +154,22 @@ func set_pose(pose: String, seconds: float = 0.9) -> void:
 				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
+## Back to whatever they were doing.
+func rest() -> void:
+	facing = idle_facing
+	set_pose(idle_pose)
+
+
+## Lays the figure flat on its back with its head aft, or stands it up again.
+func lie_down(down: bool) -> void:
+	lying = down
+	rotation.x = PI * 0.5 if down else 0.0
+
+
 ## Where the figure's eyes are, in its parent's space.
 func eye_position() -> Vector3:
+	if lying:
+		return position + Vector3(0.0, 0.2, EYE_HEIGHT * 0.9)
 	return position + Vector3(0.0, EYE_HEIGHT, 0.0)
 
 
@@ -144,6 +178,16 @@ func _process(delta: float) -> void:
 	rotation.y = lerp_angle(rotation.y, facing, 1.0 - exp(-2.5 * delta))
 	_sway.position.y = 0.004 * sin(_time * 1.4)
 	_sway.rotation.z = 0.012 * sin(_time * 0.6)
+
+	# Left to themselves, people look about them now and then.
+	var settled := _tween == null or not _tween.is_running()
+	if settled and not lying and absf(wrapf(facing - idle_facing, -PI, PI)) < 0.01:
+		_glance_wait -= delta
+		if _glance_wait <= 0.0:
+			_glance_wait = randf_range(2.5, 7.0)
+			_glance = randf_range(-0.6, 0.6)
+		var head := _parts["head"] as Node3D
+		head.rotation.y = lerpf(head.rotation.y, _glance, 1.0 - exp(-2.0 * delta))
 
 
 func _joint(parent: Node3D, part: String, pos: Vector3) -> Node3D:

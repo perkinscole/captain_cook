@@ -6,7 +6,7 @@ extends MeshInstance3D
 const SHADER := preload("res://shaders/wake.gdshader")
 const LIFE := 24.0           ## seconds before a stretch of wake has faded away
 const STEP := 3.0            ## metres the ship moves between points
-const START_WIDTH := 3.6     ## half the wake's width at the bow, about the hull's
+const START_WIDTH := 3.2     ## half the wake's width where it leaves the stern
 const SPREAD := 1.3          ## metres wider on each side per second
 
 var ship: Ship
@@ -31,10 +31,11 @@ func _process(delta: float) -> void:
 		return
 	_time += delta
 	var fwd := ship.forward()
-	var bow := Vector2(ship.position.x + fwd.x * 13.0, ship.position.z + fwd.z * 13.0)
-	if _points.is_empty() or (_points[-1]["at"] as Vector2).distance_to(bow) > STEP:
+	# The wake begins just astern, so none of it lies inside the hull.
+	var stern := Vector2(ship.position.x - fwd.x * 16.5, ship.position.z - fwd.z * 16.5)
+	if _points.is_empty() or (_points[-1]["at"] as Vector2).distance_to(stern) > STEP:
 		_points.append({
-			"at": bow, "side": Vector2(-fwd.z, fwd.x), "born": _time,
+			"at": stern, "side": Vector2(-fwd.z, fwd.x), "born": _time,
 			"strength": clampf(absf(ship.speed) / 5.0, 0.0, 1.0),
 		})
 	while not _points.is_empty() and _time - float(_points[0]["born"]) > LIFE:

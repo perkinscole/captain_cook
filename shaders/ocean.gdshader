@@ -19,6 +19,10 @@ uniform sampler2D depth_map : filter_linear, repeat_disable;
 uniform bool has_depth_map = false;
 uniform vec2 map_centre = vec2(0.0);
 uniform float map_size = 1800.0;
+// The ship: x, z, and the sine and cosine of her heading. The sea is not
+// drawn inside her hull, or it would wash across the lower deck.
+uniform vec4 hull = vec4(0.0, 0.0, 0.0, 1.0);
+uniform bool has_hull = false;
 
 varying vec3 world_pos;
 varying float crest;
@@ -69,6 +73,19 @@ void vertex() {
 
 void fragment() {
 	vec2 p = world_pos.xz;
+	if (has_hull) {
+		vec2 d = p - hull.xy;
+		float aft = -(d.x * hull.z - d.y * hull.w);
+		float across = d.x * hull.w + d.y * hull.z;
+		float u = (aft + 16.0) / 31.0;
+		if (u > 0.01 && u < 0.995) {
+			float bow = pow(clamp(u / 0.12, 0.0, 1.0), 0.4);
+			float stern = 1.0 - 0.22 * pow(clamp((u - 0.78) / 0.22, 0.0, 1.0), 2.0);
+			if (abs(across) < 4.0 * bow * stern * 0.84) {
+				discard;
+			}
+		}
+	}
 	float t = sea_time;
 
 	// Small ripples, too fine for the mesh: they only tilt the light.
