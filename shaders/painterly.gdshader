@@ -11,6 +11,7 @@ shader_type canvas_item;
 
 uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linear;
 uniform float brush = 3.0;        // size of a dab, in pixels on a 720-line screen
+uniform float amount : hint_range(0.0, 1.0) = 0.45;   // how much of the dab replaces the picture
 uniform float crispness = 2.0;    // how strongly calm wedges win over busy ones
 
 void fragment() {
@@ -37,5 +38,8 @@ void fragment() {
 		total += mean * weight;
 		weight_sum += weight;
 	}
-	COLOR = vec4(total / max(weight_sum, 0.00001), 1.0);
+	// The surfaces are already painted in strokes; too much smoothing on top
+	// turns them to mush, so the dabs are only laid partly over the picture.
+	vec3 sharp = texture(screen_tex, SCREEN_UV).rgb;
+	COLOR = vec4(mix(sharp, total / max(weight_sum, 0.00001), amount), 1.0);
 }

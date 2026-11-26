@@ -24,7 +24,7 @@ const PLAIN_FROM := 0.78
 const PALMS := 340
 const GROVE_TREES := 260
 const LANDMARK_EVERY := 15  ## one landmark every 15 coast points (30 degrees)
-const TREES := 2600
+const TREES := 4200
 const WATERFALL_SHADER := preload("res://shaders/waterfall.gdshader")
 const SURF_SHADER := preload("res://shaders/surf.gdshader")
 ## The island is a stand-in for Tahiti: the shape is made up, not the real
@@ -50,7 +50,6 @@ var _landmark_tops := PackedFloat32Array()
 var _noise: FastNoiseLite
 var _trunk_mesh: CylinderMesh
 var _crown_mesh: ArrayMesh
-var _clouds: Node3D
 var _bark: ShaderMaterial
 var _fronds: ShaderMaterial
 var _radii := PackedFloat32Array()
@@ -122,12 +121,6 @@ func build(noise_seed: int) -> void:
 	_build_waterfalls()
 	_build_villages(noise_seed)
 	_build_fort()
-	_build_peak_clouds()
-
-
-func _process(delta: float) -> void:
-	if _clouds != null:
-		_clouds.rotation.y += delta * 0.008   # the cloud on the peak drifts round it
 
 
 ## How deeply the land is cut by valleys along a bearing: near 0 on the
@@ -154,8 +147,10 @@ func _height(a: float, t: float, x: float, z: float) -> float:
 	var m := _climb(t)
 	# Ridges and valleys radiate from the middle. They are deepest halfway up.
 	var carve := smoothstep(0.0, 0.3, _valley(a)) * sin(PI * clampf(m * 1.15, 0.0, 1.0))
-	var crags := 1.0 + 0.3 * _noise.get_noise_2d(x * 2.4 + 900.0, z * 2.4) * m
-	var h := 11.0 + PEAK_HEIGHT * pow(m, 1.2) * (1.0 - 0.6 * carve) * crags
+	# Broken ground: big crags, and smaller ones on top of them.
+	var crags := 1.0 + (0.4 * _noise.get_noise_2d(x * 2.4 + 900.0, z * 2.4)
+			+ 0.16 * _noise.get_noise_2d(x * 7.0, z * 7.0 + 300.0)) * m
+	var h := 11.0 + PEAK_HEIGHT * pow(m, 1.2) * (1.0 - 0.78 * carve) * crags
 	# A second, lower summit to one side, so the skyline is not a single cone.
 	var second := Vector2(cos(2.2), sin(2.2)) * BASE_RADIUS * 0.42
 	var off := Vector2(x, z).distance_to(second) / (BASE_RADIUS * 0.2)
@@ -300,23 +295,27 @@ func _frond_crown() -> ArrayMesh:
 	return mesh
 
 
-## Forest on the mountain sides and breadfruit groves on the plain: many
-## tree crowns drawn as one batch.
+## Forest on the mountain sides and breadfruit groves on the plain. Each
+## tree is a clump of foliage, darker underneath; the grove trees stand on
+## trunks. All of them are drawn in batches.
 func _build_forest(forest_seed: int) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = forest_seed + 7
-	var crown := SphereMesh.new()
-	crown.radius = 1.0
-	crown.height = 1.7
-	crown.radial_segments = 6
-	crown.rings = 3
-	crown.material = Paint.material(Color(1.0, 1.0, 1.0), 0.4, 0.8)
+	var foliage := _clump_mesh()
+	var leaves := Paint.material(Color(1.0, 1.0, 1.0), 0.4, 0.8)
+	leaves.set_shader_parameter("shade_below", 0.55)
+	leaves.set_shader_parameter("variation", 0.22)
+	foliage.surface_set_material(0, leaves)
 
-	var batch := MultiMesh.new()
-	batch.transform_format = MultiMesh.TRANSFORM_3D
-	batch.use_colors = true
-	batch.mesh = crown
-	batch.instance_count = TREES + GROVE_TREES
+	var crowns := MultiMesh.new()
+	crowns.transform_format = MultiMesh.TRANSFORM_3D
+	crowns.use_colors = true
+	crowns.mesh = foliage
+	crowns.instance_count = TREES + GROVE_TREES
+	var trunks := MultiMesh.new()
+	trunks.transform_format = MultiMesh.TRANSFORM_3D
+	trunks.mesh = _trunk_mesh
+	trunks.instance_count = GROVE_TREES
 	for n in TREES + GROVE_TREES:
 		var grove := n >= TREES
 		var a := rng.randf_range(0.0, TAU)
@@ -330,18 +329,45 @@ func _build_forest(forest_seed: int) -> void:
 			a += 0.3
 		var r := coast_radius(a) * t
 		var world := Vector2(position.x + cos(a) * r, position.z + sin(a) * r)
-		var size := rng.randf_range(5.0, 8.5) if grove else rng.randf_range(3.5, 7.5)
-		var at := Vector3(cos(a) * r, surface_height(world) + size * 0.45, sin(a) * r)
-		var shape := Basis.from_scale(Vector3(size, size * rng.randf_range(0.8, 1.3), size))
-		batch.set_instance_transform(n, Transform3D(shape, at))
+		var ground := surface_height(world)
+		var size := rng.randf_range(2.6, 3.8) if grove else rng.randf_range(2.0, 4.2)
+		var lift := rng.randf_range(3.5, 5.0) if grove else size * 0.35
+		var shape := Basis.from_euler(Vector3(0.0, rng.randf_range(0.0, TAU), 0.0)) \
+				* Basis.from_scale(Vector3(size, size * rng.randf_range(0.75, 1.15), size))
+		crowns.set_instance_transform(n, Transform3D(shape,
+				Vector3(cos(a) * r, ground + lift, sin(a) * r)))
 		var green := rng.randf_range(0.0, 1.0)
-		var leaf := Color(0.09 + 0.09 * green, 0.24 + 0.14 * green, 0.09)
+		var leaf := Color(0.08 + 0.10 * green, 0.22 + 0.16 * green, 0.08 + 0.03 * green)
 		if grove:
-			leaf = Color(0.14 + 0.08 * green, 0.34 + 0.12 * green, 0.10)
-		batch.set_instance_color(n, leaf)
-	var forest := MultiMeshInstance3D.new()
-	forest.multimesh = batch
-	add_child(forest)
+			leaf = Color(0.13 + 0.10 * green, 0.32 + 0.14 * green, 0.09)
+			trunks.set_instance_transform(n - TREES, Transform3D(
+					Basis.from_scale(Vector3(0.34, lift, 0.34)),
+					Vector3(cos(a) * r, ground + lift * 0.5, sin(a) * r)))
+		crowns.set_instance_color(n, leaf)
+	for batch: MultiMesh in [crowns, trunks]:
+		var stand := MultiMeshInstance3D.new()
+		stand.multimesh = batch
+		add_child(stand)
+
+
+## The head of a tree: several rounded masses of leaves run together, so
+## that no tree is a ball.
+func _clump_mesh() -> ArrayMesh:
+	var ball := SphereMesh.new()
+	ball.radius = 1.0
+	ball.height = 2.0
+	ball.radial_segments = 8
+	ball.rings = 4
+	var masses: Array[Vector4] = [
+		Vector4(0.0, 0.0, 0.0, 0.85), Vector4(0.7, 0.2, 0.2, 0.62), Vector4(-0.62, 0.12, -0.38, 0.66),
+		Vector4(0.1, 0.5, -0.55, 0.55), Vector4(-0.2, 0.52, 0.5, 0.58), Vector4(0.35, -0.1, -0.6, 0.5),
+	]
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for mass in masses:
+		st.append_from(ball, 0, Transform3D(
+				Basis.from_scale(Vector3(mass.w, mass.w * 0.8, mass.w)), Vector3(mass.x, mass.y, mass.z)))
+	return st.commit()
 
 
 ## A band of breaking water all round the shore.
@@ -489,7 +515,8 @@ func _build_waterfalls() -> void:
 func _build_villages(village_seed: int) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = village_seed + 31
-	var thatch := Paint.material(Color(0.62, 0.50, 0.28), 0.35, 0.9)
+	var thatch := Paint.material(Color(0.52, 0.45, 0.28), 0.35, 0.9)
+	thatch.set_shader_parameter("shade_below", 0.3)
 	var wood := Paint.material(Color(0.36, 0.24, 0.14), 0.3, 0.85)
 	var near_landing := keep_clear_angle if keep_clear_angle < 100.0 else 4.5
 	var sites: Array[float] = [near_landing + 0.42, near_landing - 0.5, 0.7, 2.5, 3.6]
@@ -503,11 +530,23 @@ func _build_villages(village_seed: int) -> void:
 			house.position = foot
 			house.rotation.y = rng.randf_range(0.0, PI)
 			add_child(house)
-			var long := rng.randf_range(3.0, 4.6)
-			_lump(house, Vector3(long, 1.6, 2.0), Vector3(0.0, 2.1, 0.0), thatch)
-			for post_x: float in [-0.75, 0.0, 0.75]:
-				for post_z: float in [-1.5, 1.5]:
-					_post(house, Vector3(post_x * long, 1.0, post_z), 2.0, 0.09, wood)
+			# A long house: a steep thatched roof coming low over open sides,
+			# held up on posts, with a rounded end.
+			var long := rng.randf_range(6.0, 9.0)
+			var roof := MeshInstance3D.new()
+			var pitch := PrismMesh.new()
+			pitch.size = Vector3(4.6, 2.3, long)
+			roof.mesh = pitch
+			roof.material_override = thatch
+			roof.position = Vector3(0.0, 2.75, 0.0)
+			house.add_child(roof)
+			_lump(house, Vector3(2.2, 1.15, 1.4), Vector3(0.0, 2.2, long * 0.5), thatch)
+			for post_x: float in [-1.8, 1.8]:
+				for k in 4:
+					_post(house, Vector3(post_x, 0.8, lerpf(-long * 0.45, long * 0.45, k / 3.0)),
+							1.6, 0.08, wood)
+			for post_z: float in [-0.3, 0.3]:
+				_post(house, Vector3(0.0, 1.3, post_z * long), 2.6, 0.1, wood)
 		# Canoes hauled up above the tide: a slim hull and an outrigger float.
 		for n in 3:
 			var a := site + (n - 1) * 0.035
@@ -525,11 +564,12 @@ func _build_villages(village_seed: int) -> void:
 		var r_fire := coast_radius(site) * 0.9
 		var smoke := CPUParticles3D.new()
 		var puff_mat := StandardMaterial3D.new()
-		puff_mat.albedo_color = Color(0.85, 0.85, 0.88, 0.22)
+		puff_mat.albedo_color = Color(0.85, 0.85, 0.88, 0.3)
 		puff_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		puff_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		puff_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 		puff_mat.billboard_keep_scale = true
+		puff_mat.albedo_texture = Paint.soft_dot()
 		var puff := QuadMesh.new()
 		puff.size = Vector2(5.0, 5.0)
 		puff.material = puff_mat
@@ -585,25 +625,6 @@ func _build_fort() -> void:
 	fort.add_child(flag)
 
 
-## The cloud that gathers on a high island's peak most afternoons.
-func _build_peak_clouds() -> void:
-	_clouds = Node3D.new()
-	_clouds.position = Vector3(0.0, PEAK_HEIGHT * 0.86, 0.0)
-	add_child(_clouds)
-	var white := Paint.material(Color(0.96, 0.96, 0.97), 6.0, 1.0)
-	white.set_shader_parameter("variation", 0.06)
-	white.set_shader_parameter("ground", 0.0)
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 88
-	for k in 9:
-		var a := TAU * k / 9.0 + rng.randf_range(-0.3, 0.3)
-		var out := rng.randf_range(30.0, 95.0)
-		var blob := _lump(_clouds, Vector3(rng.randf_range(38.0, 62.0), rng.randf_range(11.0, 18.0),
-				rng.randf_range(30.0, 46.0)), Vector3(cos(a) * out, rng.randf_range(-8.0, 12.0),
-				sin(a) * out), white)
-		blob.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-
-
 ## A rounded lump, given by its half-size along each axis.
 func _lump(parent: Node3D, radii: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
 	var inst := MeshInstance3D.new()
@@ -654,5 +675,10 @@ func _land_color(a: float, t: float, x: float, z: float) -> Color:
 	var green := Color(0.12, 0.30, 0.12).lerp(Color(0.30, 0.42, 0.18), smoothstep(0.25, 0.65, m))
 	green = green.darkened(0.3 * smoothstep(0.12, 0.35, valley))
 	var bare := smoothstep(0.6, 0.92, m) + 0.6 * (1.0 - smoothstep(0.0, 0.1, valley)) * m
-	return green.lerp(Color(0.34, 0.31, 0.28).lerp(Color(0.46, 0.42, 0.38), 0.5 + 0.5 * patchy),
+	var land := green.lerp(Color(0.34, 0.31, 0.28).lerp(Color(0.46, 0.42, 0.38), 0.5 + 0.5 * patchy),
 			clampf(bare, 0.0, 1.0))
+	# Paint the form in: valleys in shadow, ridge crests catching the light.
+	# This is what a painter does so that a mountain reads in any weather.
+	var depth := smoothstep(0.08, 0.34, valley) * sin(PI * clampf(m * 1.15, 0.0, 1.0))
+	var crest := (1.0 - smoothstep(0.0, 0.07, valley)) * smoothstep(0.1, 0.5, m)
+	return land.darkened(0.45 * depth).lightened(0.22 * crest)

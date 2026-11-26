@@ -9,7 +9,7 @@ const SKY_SHADER := preload("res://shaders/sky.gdshader")
 const FAIR_ZENITH := Color(0.13, 0.36, 0.78)
 const FAIR_HORIZON := Color(0.62, 0.80, 0.95)
 const FOUL_ZENITH := Color(0.08, 0.10, 0.13)
-const FOUL_HORIZON := Color(0.34, 0.36, 0.37)
+const FOUL_HORIZON := Color(0.46, 0.49, 0.51)
 const LOW_SUN := Color(1.0, 0.88, 0.70)
 const HIGH_SUN := Color(1.0, 0.97, 0.90)
 
@@ -85,17 +85,18 @@ func apply(gloom: float, visibility: float, wind_from: float, day_part: float,
 	# day, warmer and cooler by turns.
 	var height := 0.5 + 0.5 * sin(TAU * day_part)
 	_sun.light_color = LOW_SUN.lerp(HIGH_SUN, height)
-	_sun.light_energy = lerpf(1.6, 0.25, gloom)
+	# Even under a squall some light comes from one side, or nothing has form.
+	_sun.light_energy = lerpf(1.6, 0.6, gloom)
 
 	horizon = FAIR_HORIZON.lerp(LOW_SUN, 0.08 * (1.0 - height)).lerp(FOUL_HORIZON, gloom)
 	var blow := Compass.to_vector(wind_from) * -0.013
 	_sky_mat.set_shader_parameter("zenith", FAIR_ZENITH.lerp(FOUL_ZENITH, gloom))
 	_sky_mat.set_shader_parameter("horizon", horizon)
-	_sky_mat.set_shader_parameter("coverage", lerpf(0.45, 0.92, gloom))
+	_sky_mat.set_shader_parameter("coverage", lerpf(0.45, 0.8, gloom))
 	_sky_mat.set_shader_parameter("cloud_shade",
 			Color(0.55, 0.61, 0.74).lerp(Color(0.14, 0.15, 0.18), gloom))
 	_sky_mat.set_shader_parameter("cloud_lit",
-			Color(1.0, 0.98, 0.94).lerp(Color(0.45, 0.46, 0.48), gloom))
+			Color(1.0, 0.98, 0.94).lerp(Color(0.58, 0.60, 0.63), gloom))
 	_sky_mat.set_shader_parameter("drift", blow)
 	_sky_mat.set_shader_parameter("cloud_time", _cloud_time)
 
@@ -106,4 +107,4 @@ func apply(gloom: float, visibility: float, wind_from: float, day_part: float,
 	_env.volumetric_fog_albedo = horizon.lerp(Color(1.0, 1.0, 1.0), 0.3)
 	_env.volumetric_fog_density = lerpf(0.0003, 0.014, thick) * (1.0 - 0.8 * shelter)
 	_env.volumetric_fog_sky_affect = lerpf(0.1, 1.0, thick)
-	_env.ambient_light_energy = lerpf(0.8, 0.1, shelter)
+	_env.ambient_light_energy = lerpf(lerpf(0.8, 0.5, gloom), 0.1, shelter)

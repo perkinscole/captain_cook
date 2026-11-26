@@ -21,6 +21,7 @@ func _ready() -> void:
 	white.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	white.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	white.billboard_keep_scale = true
+	white.albedo_texture = Paint.soft_dot()
 
 	var drop := QuadMesh.new()
 	drop.size = Vector2(0.45, 0.45)

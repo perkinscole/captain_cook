@@ -18,6 +18,22 @@ static func material(colour: Color, stroke: float = 0.3, roughness: float = 0.6)
 	return mat
 
 
+## A round white spot that fades out softly to its edge: the shape of a
+## puff of smoke or a drop of spray.
+static func soft_dot() -> GradientTexture2D:
+	var fade := Gradient.new()
+	fade.set_color(0, Color(1.0, 1.0, 1.0, 1.0))
+	fade.set_color(1, Color(1.0, 1.0, 1.0, 0.0))
+	var dot := GradientTexture2D.new()
+	dot.gradient = fade
+	dot.fill = GradientTexture2D.FILL_RADIAL
+	dot.fill_from = Vector2(0.5, 0.5)
+	dot.fill_to = Vector2(1.0, 0.5)
+	dot.width = 64
+	dot.height = 64
+	return dot
+
+
 ## Skin: smooth, blended paint with no dark gaps, the way a portrait painter
 ## works a face, so that features stay readable.
 static func skin(colour: Color) -> ShaderMaterial:

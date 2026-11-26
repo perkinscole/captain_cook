@@ -12,6 +12,8 @@ uniform float relief : hint_range(0.0, 2.0) = 1.25;      // how thick the paint 
 uniform float ground : hint_range(0.0, 0.5) = 0.18;     // how dark the gaps between strokes are
 uniform float roughness : hint_range(0.0, 1.0) = 0.6;    // oil paint has a soft shine
 uniform float metallic : hint_range(0.0, 1.0) = 0.0;
+// Darkens the underside of a thing, as leaves are darker beneath a tree.
+uniform float shade_below : hint_range(0.0, 1.0) = 0.0;
 
 varying vec3 object_pos;
 varying vec3 object_normal;
@@ -28,7 +30,9 @@ void vertex() {
 void fragment() {
 	float screen_px = 70.0 * VIEWPORT_SIZE.y / 720.0;
 	vec4 paint = paint_on(object_pos, normalize(object_normal), stroke, screen_px);
-	ALBEDO = paint_colour(tint * COLOR.rgb, paint, variation, object_pos, ground);
+	vec3 base = tint * COLOR.rgb;
+	base *= 1.0 - shade_below * (1.0 - smoothstep(-0.7, 0.6, normalize(object_normal).y));
+	ALBEDO = paint_colour(base, paint, variation, object_pos, ground);
 	NORMAL = paint_relief(normalize(NORMAL), VERTEX, paint, relief);
 	ROUGHNESS = roughness;
 	METALLIC = metallic;
