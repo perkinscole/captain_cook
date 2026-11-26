@@ -528,6 +528,11 @@ func _build_waist() -> void:
 	for side: float in [-1.0, 1.0]:
 		for z: float in [-5.3, -2.6]:
 			var at := Vector3(side * 3.2, y, z)
+			# The modelled gun lies along its own X with the muzzle at -X, so
+			# it is turned to point outboard on either side.
+			var outboard := Basis(Vector3.UP, PI if side > 0.0 else 0.0)
+			if _fitting(Models.GUN, 0, 2.1, Vector3(side * 3.0, y, z), outboard) != null:
+				continue
 			_box(self, Vector3(1.0, 0.3, 0.6), at + Vector3(0.0, 0.32, 0.0), _red)
 			var barrel := _cylinder(self, 0.09, 0.15, 1.6, at + Vector3(side * 0.15, 0.6, 0.0),
 					_iron, 8)
@@ -544,8 +549,13 @@ func _build_waist() -> void:
 		_box(self, Vector3(7.0, 0.18, 0.2), Vector3(0.0, beam_y, z), _wood)
 		for side: float in [-1.0, 1.0]:
 			_box(self, Vector3(0.16, 2.25, 0.16), Vector3(side * 3.4, y + 1.12, z), _wood)
-	_boat(Vector3(-1.25, beam_y + 0.1, -3.7), 6.4, 1.9)   # the longboat
-	_boat(Vector3(1.3, beam_y + 0.1, -3.7), 5.6, 1.7)     # the pinnace
+	# The modelled boat lies along its own X with the bow at -X; turned to
+	# lie fore and aft with her bow forward. The same model serves for both.
+	var fore_and_aft := Basis(Vector3.UP, -PI * 0.5)
+	if _fitting(Models.BOAT, 0, 6.4, Vector3(-1.3, beam_y + 0.1, -3.7), fore_and_aft) == null:
+		_boat(Vector3(-1.25, beam_y + 0.1, -3.7), 6.4, 1.9)   # the longboat
+	if _fitting(Models.BOAT, 0, 5.4, Vector3(1.25, beam_y + 0.1, -3.7), fore_and_aft) == null:
+		_boat(Vector3(1.3, beam_y + 0.1, -3.7), 5.6, 1.7)     # the pinnace
 
 
 func _build_forecastle() -> void:

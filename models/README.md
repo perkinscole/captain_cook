@@ -17,16 +17,16 @@ missing (see `scripts/models.gd`).
 | `characters/banks/` | Mr Banks, in the great cabin |
 | `ship/hull.glb` | An outer shell wrapped round the code-built ship. Only seen from outside. |
 | `ship/wheel.glb`, `capstan.glb`, `windlass.glb`, `anchor.glb`, `lantern.glb` | Deck fittings |
+| `ship/boat_light.glb` | The longboat and the pinnace, stowed over the waist. About 28,000 triangles. |
+| `ship/gun_light.glb` | The four 4-pounder guns in the waist. About 14,000 triangles. |
 
 Each character folder has the rigged body (`*_rigged.glb`) and the same body
 with a walking clip (`*_walking.glb`), which is the one the game loads.
 
-## Not in the game yet
-
-| File | Why |
-| --- | --- |
-| `ship/boat.glb` | About 1.3 million triangles: too heavy to use twice on deck until it is slimmed down |
-| `gun/gun_4pdr.glb` | About 400,000 triangles, and it appears four times |
+The boat and the gun first came back far too detailed to use (1.3 million and
+400,000 triangles). Those originals are not kept here; the slimmed versions
+above were made from them in Meshy and can be made again from the same tasks,
+which are listed in `meshy_output/model_tasks.tsv`.
 
 ## Still built in code
 

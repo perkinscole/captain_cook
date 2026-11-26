@@ -18,6 +18,8 @@ const CAPSTAN := "res://models/ship/capstan.glb"
 const WINDLASS := "res://models/ship/windlass.glb"
 const ANCHOR := "res://models/ship/anchor.glb"
 const LANTERN := "res://models/ship/lantern.glb"
+const BOAT := "res://models/ship/boat_light.glb"
+const GUN := "res://models/ship/gun_light.glb"
 
 
 static func has(path: String) -> bool:
