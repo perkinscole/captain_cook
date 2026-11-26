@@ -80,6 +80,8 @@ var _in_hammock: Dictionary = {}    # Hand -> which hammock they are lying in
 var _station: Dictionary = {}       # Hand -> where they stand when well
 var _spray_wait: float = 0.0
 var _stuck_for: float = 0.0
+var _was_pinched: bool = false
+var _was_turning: String = ""
 
 
 func _ready() -> void:
@@ -260,6 +262,7 @@ func _physics_process(delta: float) -> void:
 	lead.skill = crew.efficiency("lead")
 	_aground_lately = maxf(0.0, _aground_lately - delta)
 	_tow_and_stuck(delta)
+	_helmsman_reports()
 	_ride_the_waves(delta)
 
 	var here := Vector2(ship.position.x, ship.position.z)
@@ -475,8 +478,18 @@ func _sailing_key(key: Key) -> void:
 				tutorial.note("crew_panel")
 		KEY_H:
 			hud.toggle_help()
+		KEY_X:
+			control.go_about(ship)
+			hud.callout("Trull, at the wheel", "Ready about! Helm's a-lee!")
+			if not sound.say("go_about"):
+				sound.play("pipe_helm", -10.0)
 		KEY_T:
 			tutorial.skip()
+		KEY_9:
+			_debug_jump_to_bay()
+		KEY_0:
+			charting.debug_sketch_all()
+			_say("Testing: the whole coast is sketched in.", 4.0)
 		KEY_R:
 			supplies.cycle_rations()
 			_say("Rations: %s." % Supplies.RATION_NAMES[supplies.rations], 4.0)
@@ -530,6 +543,36 @@ func _tow_and_stuck(delta: float) -> void:
 	elif ship.angle_off_wind() < Ship.NO_GO_DEG + 5.0:
 		_say("She is head to wind and cannot sail there. Order a course outside the red "
 				+ "wedge on the compass, and zig-zag toward where you want to go.", 10.0)
+
+
+## For testing: puts the ship at anchor distance in Matavai Bay, stopped,
+## so the landfall can be tried without sailing there.
+func _debug_jump_to_bay() -> void:
+	tutorial.skip()
+	ship.towing = false
+	ship.position = Vector3(landfall.anchorage.x, 0.0, landfall.anchorage.y)
+	ship.heading_deg = 180.0
+	ship.speed = 0.0
+	ship.set_sail(0)
+	ship.canvas = 0.0
+	_last_safe = landfall.anchorage
+	control.activate(ship)
+	sea.follow(ship.position)
+	_say("Testing: jumped to Matavai Bay. Press Enter to anchor.", 6.0)
+
+
+## The helmsman says what he is doing when he cannot simply steer the
+## course ordered.
+func _helmsman_reports() -> void:
+	if control.pinched and not _was_pinched and not ship.towing and not ship.hove_to:
+		hud.callout("Trull, at the wheel", "She won't lie that close, sir. Full and by it is.")
+		_say("That course is too close to the wind. Trull will hold her as near to it as she "
+				+ "will sail. Press X to go about onto the other tack.", 9.0)
+	_was_pinched = control.pinched
+	var turning := "tack" if control.tacking else ("wear" if control.wearing else "")
+	if turning != _was_turning and turning == "wear":
+		hud.callout("Trull, at the wheel", "Not way enough to tack, sir. Wearing ship.")
+	_was_turning = turning
 
 
 func _order_sail(level: int) -> void:

@@ -8,6 +8,7 @@ extends Control
 const HELP := """W A S D        walk the deck  (Shift to hurry)
 Left / Right        order the course a point to port / starboard
 Up / Down        make sail / shorten sail
+X               go about: sail as close to the wind on the other side
 Space        heave the lead, and Space again to let go (under 9 knots)
 Q               raise or lower the spyglass (or hold the right mouse button)
 F               take a bearing on the landmark in the spyglass
@@ -18,7 +19,9 @@ C               crew and stores
 R  /  K  /  G     rations  /  sour krout  /  extra grog
 P               painted look on or off
 H               this sheet
-Esc           pause"""
+Esc           pause
+
+For testing:   9  jump to Matavai Bay      0  finish sketching the coast"""
 
 var ship: Ship
 var wind: Wind
@@ -266,6 +269,12 @@ func _point_of_sail() -> String:
 		return "Under bare poles"
 	if a < Ship.NO_GO_DEG:
 		return "Head to wind, sails shivering"
+	if control != null and control.tacking:
+		return "Tacking: coming through the wind"
+	if control != null and control.wearing:
+		return "Wearing: coming round before the wind"
+	if control != null and control.pinched:
+		return "Full and by, %s tack: as close to the wind as she will lie" % tack
 	if a < 80.0:
 		return "Close-hauled, %s tack" % tack
 	if a < 110.0:

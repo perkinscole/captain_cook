@@ -57,9 +57,9 @@ static func polar(angle_off_wind: float) -> float:
 	if angle_off_wind < NO_GO_DEG:
 		return 0.0
 	if angle_off_wind < 70.0:
-		return remap(angle_off_wind, NO_GO_DEG, 70.0, 0.0, 0.6)
+		return remap(angle_off_wind, NO_GO_DEG, 70.0, 0.25, 0.65)
 	if angle_off_wind < 120.0:
-		return remap(angle_off_wind, 70.0, 120.0, 0.6, 1.0)
+		return remap(angle_off_wind, 70.0, 120.0, 0.65, 1.0)
 	if angle_off_wind <= 150.0:
 		return 1.0
 	return remap(angle_off_wind, 150.0, 180.0, 1.0, 0.85)
@@ -128,7 +128,7 @@ func _physics_process(delta: float) -> void:
 	if target < speed:
 		# She carries her way through the wind's eye, which is what makes
 		# tacking possible. Otherwise she slows fairly quickly.
-		accel = 0.45 if a < NO_GO_DEG and speed > 0.0 else 1.0
+		accel = 0.3 if a < NO_GO_DEG and speed > 0.0 else 1.0
 	if hove_to:
 		target = 0.0
 		accel = 1.5
@@ -136,7 +136,7 @@ func _physics_process(delta: float) -> void:
 
 	# The rudder needs water moving past it, and works backwards with sternway.
 	var steer_sign := -1.0 if has_sternway() else 1.0
-	var turn_rate := rudder * steer_sign * minf(1.5 + 2.6 * absf(speed), 15.0)
+	var turn_rate := rudder * steer_sign * minf(3.0 + 2.6 * absf(speed), 15.0)
 	# Head to wind with sail set, her bow is pushed off the wind.
 	if a < NO_GO_DEG and canvas > 0.02:
 		turn_rate -= signf(rel) * 1.5 * canvas

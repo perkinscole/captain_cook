@@ -26,7 +26,9 @@ const STEPS: Array[Dictionary] = [
 			+ "shows what you have ordered."},
 	{"id": "wind", "text": "Now the wind. The blue arrow on the compass flies the way "
 			+ "it blows. See the red wedge? No square-rigger sails into that. Keep the "
-			+ "wind on her side or behind her and she flies. To get upwind you zig-zag."},
+			+ "wind on her side or behind her and she flies. If you order a course "
+			+ "inside the wedge, Trull will hold her as close to the wind as she will "
+			+ "go. To get upwind you zig-zag: press X to go about onto the other tack."},
 	{"id": "chart", "text": "Your chart is at the bottom right. Press M to bring it "
 			+ "to the table, and M again to put it away. The coast draws itself in "
 			+ "pencil as we sail in sight of it."},

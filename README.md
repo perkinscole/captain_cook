@@ -172,12 +172,18 @@ first prototype also tried holding the wheel directly; giving orders was chosen.
 | R / K / G | Change rations / serve sour krout / issue extra grog |
 | P | Painted look on or off |
 | H | Show the keys |
+| X | Go about: sail as close to the wind on the other side |
 | T | Skip the lessons |
+| 9 | Testing: jump to Matavai Bay |
+| 0 | Testing: finish sketching the coast |
 | Mouse | Look around |
 | Esc | Pause |
 
-A square-rigger cannot sail closer than about 50 degrees to the wind. To get
-upwind, zig-zag (tack) either side of it.
+A square-rigger cannot sail closer than about 50 degrees to the wind. If you
+order a course closer than that, the helmsman holds her as near the wind as
+she will sail and keeps her moving. To get upwind, zig-zag: press X to go
+about onto the other tack. He tacks through the wind when she has the speed
+for it and wears round the long way when she has not.
 
 ## Layout
 

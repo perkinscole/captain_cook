@@ -144,6 +144,15 @@ func coast_is_fixed(i: int) -> bool:
 	return is_fixed(k0) and is_fixed((k0 + 1) % island.landmarks.size())
 
 
+## For testing: marks nearly all the coast as sketched, so that the survey
+## completes at the next check.
+func debug_sketch_all() -> void:
+	seen_count = 0
+	for i in seen.size():
+		seen[i] = 0 if i % 30 == 7 else 1
+		seen_count += seen[i]
+
+
 func _physics_process(delta: float) -> void:
 	if ship == null or island == null or seen.is_empty():
 		return
