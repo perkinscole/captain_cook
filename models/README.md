@@ -27,13 +27,17 @@ and its recorded clips:
 
 | Character | Clips |
 | --- | --- |
-| Seaman | Idle, Casual Walk, Stand and Chat, Short Breathe and Look Around, Ladder Climb Loop |
-| Cook, Banks | Idle, Casual Walk, Talk with Hands Open |
-| Officer, old seaman | Idle, Casual Walk, Stand and Chat |
-| Ship's boy | Idle, Casual Walk, Short Breathe and Look Around |
-| Marine | Idle, Casual Walk |
+| Seaman | Idle 4, Casual Walk, Stand and Chat, Short Breathe and Look Around, Ladder Climb Loop |
+| Cook, Banks, Tupaia | Idle 4, Casual Walk, Talk with Hands Open |
+| Officer, old seaman | Idle 4, Casual Walk, Stand and Chat |
+| Islander | Idle 4, Casual Walk, Stand and Chat, Chair Sit Idle (for the canoe paddlers) |
+| Ship's boy | Idle 4, Casual Walk, Short Breathe and Look Around |
+| Marine | Idle 4, Casual Walk |
 
-`scripts/figure.gd` sorts the clips by name into idle, walk, talk, look and
+The standing clip is Meshy's "Idle 4" (upright, feet together). Its plain
+"Idle" is a wide, knees-bent stance that read as a hunch on deck.
+
+`scripts/figure.gd` sorts the clips by name into idle, walk, talk, look, sit and
 climb, and plays the nearest one for whatever the figure is doing. The Meshy
 tasks behind every file are listed in `meshy_output/*.tsv`.
 
@@ -44,7 +48,7 @@ which are listed in `meshy_output/model_tasks.tsv`.
 
 ## Still built in code
 
-The decks, cabins and lower deck you walk on, masts, yards, sails and rigging, and Tupaia.
+The decks, cabins and lower deck you walk on, masts, yards, sails and rigging.
 
 `meshy_output/` holds the reference pictures and rendered previews from each
 step. The dress and the fittings were described from memory of the period and

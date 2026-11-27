@@ -67,10 +67,20 @@ func _build_canoe(sailing: bool, rng: RandomNumberGenerator) -> Node3D:
 	var crew := 3 if sailing else (1 + rng.randi() % 2)
 	for n in crew:
 		var seat := lerpf(-length * 0.45, length * 0.45, (n + 0.5) / crew)
-		_lump(boat, Vector3(0.17, 0.3, 0.13), Vector3(0.0, 0.52, seat), cloth if n % 2 == 0 else skin)
-		_lump(boat, Vector3(0.1, 0.12, 0.1), Vector3(0.0, 0.96, seat), skin)
-		_lump(boat, Vector3(0.1, 0.07, 0.1), Vector3(0.0, 1.03, seat + 0.01),
-				Paint.cloth(Color(0.07, 0.06, 0.05)))   # hair
+		if Models.has(Models.ISLANDER):
+			# A modelled paddler, sitting in the hull.
+			var paddler := Figure.new()
+			paddler.model_path = Models.ISLANDER
+			paddler.idle_clip = "sit"
+			paddler.model_tint = Color(1.0, 1.0, 1.0).lerp(Color(0.85, 0.78, 0.70), rng.randf())
+			boat.add_child(paddler)
+			paddler.position = Vector3(0.0, -0.27, seat)
+		else:
+			_lump(boat, Vector3(0.17, 0.3, 0.13), Vector3(0.0, 0.52, seat),
+					cloth if n % 2 == 0 else skin)
+			_lump(boat, Vector3(0.1, 0.12, 0.1), Vector3(0.0, 0.96, seat), skin)
+			_lump(boat, Vector3(0.1, 0.07, 0.1), Vector3(0.0, 1.03, seat + 0.01),
+					Paint.cloth(Color(0.07, 0.06, 0.05)))   # hair
 		if sailing:
 			continue
 		var paddle := Node3D.new()

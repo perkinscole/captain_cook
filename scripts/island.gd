@@ -1,30 +1,37 @@
 class_name Island
 extends Node3D
-## The island: a stand-in for Tahiti, built in code.
+## The island: a stand-in for Tahiti.
 ##
-## Like Tahiti it is the stump of an old volcano: sharp peaks in the middle,
+## Like Tahiti it is the stump of an old volcano that the rain has been
+## wearing down ever since: a broken ring of peaks round a sunken crater,
 ## knife-edged ridges with deep valleys between them running down to the
-## sea, waterfalls in the valleys, and a narrow green plain round the shore
+## sea, waterfalls at their heads, and a narrow green plain round the shore
 ## where the people live among breadfruit and coconut palms. There are
 ## villages of thatched houses with canoes drawn up before them, and on the
 ## north point the fort the ship's company built for the observatory.
+##
+## The ground itself is not shaped here. It is made beforehand by
+## tools/make_island.py, which raises a volcano and lets rivers cut it, and
+## saved in terrain/ as a map of heights with maps of light and running
+## water to go with it. This reads those, lays a mesh over the heights,
+## and plants the island by rule: where a tree stands depends on how steep
+## and how wet the ground under it is.
 ##
 ## The coastline is kept as a ring of points so the chart can draw it and
 ## the ship can run aground on it. The shape is invented, not surveyed.
 
 const SAMPLES := 180        ## coastline points, one every 2 degrees
-const RINGS := 44
-const MESH_SAMPLES := 360   ## the ground is drawn twice as finely as the coast is charted
 const BASE_RADIUS := 300.0
-const RADIUS_SWING := 110.0
-const PEAK_HEIGHT := 215.0
+const TERRAIN := "res://terrain/island"
+const TERRAIN_SHADER := preload("res://shaders/terrain.gdshader")
+const GROUND_STEP := 2.0    ## metres between the points of the ground mesh
 ## Where the mountains end and the coastal plain begins, as a share of the
 ## way from the middle to the shore.
-const PLAIN_FROM := 0.78
+const PLAIN_FROM := 0.84
 const PALMS := 340
 const GROVE_TREES := 260
 const LANDMARK_EVERY := 15  ## one landmark every 15 coast points (30 degrees)
-const TREES := 4200
+const TREES := 9000
 const WATERFALL_SHADER := preload("res://shaders/waterfall.gdshader")
 const SURF_SHADER := preload("res://shaders/surf.gdshader")
 ## The island is a stand-in for Tahiti: the shape is made up, not the real
@@ -47,62 +54,27 @@ var landmarks := PackedVector2Array()  ## world-space (x, z) of each landmark
 var keep_clear_angle: float = INF
 
 var _landmark_tops := PackedFloat32Array()
-var _noise: FastNoiseLite
 var _trunk_mesh: CylinderMesh
 var _crown_mesh: ArrayMesh
 var _bark: ShaderMaterial
 var _fronds: ShaderMaterial
 var _radii := PackedFloat32Array()
-var _heights := PackedFloat32Array()  # height of every mesh vertex, ring by ring
+var _size := 0                      # the height map is _size by _size
+var _span := 1024.0                 # and covers this many metres
+var _heights := PackedFloat32Array()
+var _masks := PackedByteArray()     # open sky, sunlight, running water, rock
+var _waterfalls: Array = []
 
 
-func build(noise_seed: int) -> void:
-	_noise = FastNoiseLite.new()
-	_noise.seed = noise_seed
-	_noise.frequency = 0.01
-
+func build(tree_seed: int) -> void:
+	if not _read_terrain():
+		push_error("The island's ground is missing: run tools/make_island.py")
+		return
 	coast.resize(SAMPLES)
-	_radii.resize(SAMPLES)
 	for i in SAMPLES:
 		var a := TAU * i / SAMPLES
-		var r := BASE_RADIUS + RADIUS_SWING * _noise.get_noise_2d(cos(a) * 130.0, sin(a) * 130.0)
-		_radii[i] = r
-		coast[i] = Vector2(position.x + cos(a) * r, position.z + sin(a) * r)
-
-	_heights.resize((RINGS + 1) * MESH_SAMPLES)
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for ring in RINGS + 1:
-		# t = 0 at the summit, 1 at the waterline, beyond 1 is the seabed.
-		var t := 1.25 * ring / RINGS
-		for i in MESH_SAMPLES:
-			var a := TAU * i / MESH_SAMPLES
-			var reach := coast_radius(a) * t
-			var x := cos(a) * reach
-			var z := sin(a) * reach
-			var h := _height(a, t, x, z)
-			st.set_color(_land_color(a, t, x, z))
-			_heights[ring * MESH_SAMPLES + i] = h
-			st.add_vertex(Vector3(x, h, z))
-	for ring in RINGS:
-		for i in MESH_SAMPLES:
-			var j := (i + 1) % MESH_SAMPLES
-			var inner_i := ring * MESH_SAMPLES + i
-			var inner_j := ring * MESH_SAMPLES + j
-			var outer_i := (ring + 1) * MESH_SAMPLES + i
-			var outer_j := (ring + 1) * MESH_SAMPLES + j
-			st.add_index(inner_i)
-			st.add_index(outer_i)
-			st.add_index(outer_j)
-			st.add_index(inner_i)
-			st.add_index(outer_j)
-			st.add_index(inner_j)
-	st.generate_normals()
-
-	var inst := MeshInstance3D.new()
-	inst.mesh = st.commit()
-	inst.material_override = Paint.material(Color(1.0, 1.0, 1.0), 0.6, 0.85)
-	add_child(inst)
+		coast[i] = Vector2(position.x + cos(a) * _radii[i], position.z + sin(a) * _radii[i])
+	_build_ground()
 
 	_bark = Paint.material(Color(0.40, 0.31, 0.22), 0.3, 0.85)
 	_fronds = Paint.material(Color(0.15, 0.36, 0.13), 0.3, 0.8)
@@ -115,46 +87,112 @@ func build(noise_seed: int) -> void:
 	_trunk_mesh.material = _bark
 	_crown_mesh = _frond_crown()
 	_build_landmarks()
-	_build_palms(noise_seed)
-	_build_forest(noise_seed)
+	_build_palms(tree_seed)
+	_build_forest(tree_seed)
 	_build_surf()
 	_build_waterfalls()
-	_build_villages(noise_seed)
+	_build_villages(tree_seed)
 	_build_fort()
 
 
-## How deeply the land is cut by valleys along a bearing: near 0 on the
-## crest of a ridge, larger down in a valley.
-func _valley(a: float) -> float:
-	return absf(_noise.get_noise_2d(cos(a) * 260.0 + 50.0, sin(a) * 260.0))
+## Reads what tools/make_island.py wrote. Returns false if it is not there.
+func _read_terrain() -> bool:
+	var about: Variant = JSON.parse_string(FileAccess.get_file_as_string(TERRAIN + ".json"))
+	if not about is Dictionary:
+		return false
+	_size = int(about["size"])
+	_span = float(about["span"])
+	_heights = FileAccess.get_file_as_bytes(TERRAIN + "_height.bin").to_float32_array()
+	_masks = FileAccess.get_file_as_bytes(TERRAIN + "_masks.bin")
+	if _heights.size() != _size * _size or _masks.size() != _size * _size * 4:
+		return false
+	_radii.resize(SAMPLES)
+	var shore: Array = about["coast"]
+	for i in SAMPLES:
+		_radii[i] = float(shore[i % shore.size()])
+	_waterfalls = about.get("waterfalls", [])
+	return true
 
 
-## How far up the mountains a spot is: 0 at their foot, 1 at the summit.
-func _climb(t: float) -> float:
-	return clampf((PLAIN_FROM - t) / PLAIN_FROM, 0.0, 1.0)
+## Lays the ground: a mesh over the heights, and the painting of it.
+func _build_ground() -> void:
+	var across := int(_span / GROUND_STEP)
+	var points := across + 1
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	verts.resize(points * points)
+	normals.resize(points * points)
+	var half := _span * 0.5
+	for row in points:
+		var z := -half + row * GROUND_STEP
+		for col in points:
+			var x := -half + col * GROUND_STEP
+			var k := row * points + col
+			verts[k] = Vector3(x, _ground(x, z), z)
+	for row in points:
+		for col in points:
+			var k := row * points + col
+			var west := verts[k - 1].y if col > 0 else verts[k].y
+			var east := verts[k + 1].y if col < across else verts[k].y
+			var north := verts[k - points].y if row > 0 else verts[k].y
+			var south := verts[k + points].y if row < across else verts[k].y
+			normals[k] = Vector3(west - east, 2.0 * GROUND_STEP, north - south).normalized()
+	# Only the land and the shallows round it are drawn; the deep is the sea's.
+	var indices := PackedInt32Array()
+	for row in across:
+		for col in across:
+			var k := row * points + col
+			if maxf(maxf(verts[k].y, verts[k + 1].y),
+					maxf(verts[k + points].y, verts[k + points + 1].y)) < -14.0:
+				continue
+			indices.append_array(PackedInt32Array(
+					[k, k + 1, k + points + 1, k, k + points + 1, k + points]))
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+
+	var mat := ShaderMaterial.new()
+	mat.shader = TERRAIN_SHADER
+	mat.set_shader_parameter("heights", ImageTexture.create_from_image(Image.create_from_data(
+			_size, _size, false, Image.FORMAT_RF, _heights.to_byte_array())))
+	mat.set_shader_parameter("masks", ImageTexture.create_from_image(Image.create_from_data(
+			_size, _size, false, Image.FORMAT_RGBA8, _masks)))
+	mat.set_shader_parameter("span", _span)
+	mat.set_shader_parameter("texel", _span / _size)
+	var ground := MeshInstance3D.new()
+	ground.mesh = mesh
+	ground.material_override = mat
+	add_child(ground)
 
 
-## Height of the land at bearing `a`, `t` of the way from the middle to the shore.
-func _height(a: float, t: float, x: float, z: float) -> float:
-	if t > 1.0:
-		return -(t - 1.0) * 60.0   # the seabed, shelving away
-	if t >= PLAIN_FROM:
-		# The coastal plain: nearly flat, rising gently inland.
-		var inland := (1.0 - t) / (1.0 - PLAIN_FROM)
-		# Lumpy near the shore, smoothing out where it meets the mountains.
-		var lumps := 0.15 * (1.0 - inland) * (_noise.get_noise_2d(x * 3.0, z * 3.0) - 1.0)
-		return 11.0 * pow(inland, 1.3) * (1.0 + lumps)
-	var m := _climb(t)
-	# Ridges and valleys radiate from the middle. They are deepest halfway up.
-	var carve := smoothstep(0.0, 0.3, _valley(a)) * sin(PI * clampf(m * 1.15, 0.0, 1.0))
-	# Broken ground: big crags, and smaller ones on top of them.
-	var crags := 1.0 + (0.4 * _noise.get_noise_2d(x * 2.4 + 900.0, z * 2.4)
-			+ 0.16 * _noise.get_noise_2d(x * 7.0, z * 7.0 + 300.0)) * m
-	var h := 11.0 + PEAK_HEIGHT * pow(m, 1.2) * (1.0 - 0.78 * carve) * crags
-	# A second, lower summit to one side, so the skyline is not a single cone.
-	var second := Vector2(cos(2.2), sin(2.2)) * BASE_RADIUS * 0.42
-	var off := Vector2(x, z).distance_to(second) / (BASE_RADIUS * 0.2)
-	return h + 0.45 * PEAK_HEIGHT * exp(-off * off) * smoothstep(0.0, 0.25, m)
+## Height of the ground at a spot measured from the island's own middle.
+func _ground(x: float, z: float) -> float:
+	var fx := clampf((x + _span * 0.5) / _span * _size - 0.5, 0.0, _size - 1.001)
+	var fz := clampf((z + _span * 0.5) / _span * _size - 0.5, 0.0, _size - 1.001)
+	var col := int(fx)
+	var row := int(fz)
+	var k := row * _size + col
+	var top := lerpf(_heights[k], _heights[k + 1], fx - col)
+	var bottom := lerpf(_heights[k + _size], _heights[k + _size + 1], fx - col)
+	return lerpf(top, bottom, fz - row)
+
+
+## How steep the ground is there: rise over run (1 is forty-five degrees).
+func _steepness(x: float, z: float) -> float:
+	return Vector2(_ground(x + 1.5, z) - _ground(x - 1.5, z),
+			_ground(x, z + 1.5) - _ground(x, z - 1.5)).length() / 3.0
+
+
+## One of the maps that go with the heights, 0..1 (0 open sky, 1 sunlight,
+## 2 running water, 3 hardness of the rock).
+func _mask(x: float, z: float, which: int) -> float:
+	var col := clampi(int((x + _span * 0.5) / _span * _size), 0, _size - 1)
+	var row := clampi(int((z + _span * 0.5) / _span * _size), 0, _size - 1)
+	return _masks[(row * _size + col) * 4 + which] / 255.0
 
 
 func landmark_name(index: int) -> String:
@@ -318,26 +356,41 @@ func _build_forest(forest_seed: int) -> void:
 	trunks.instance_count = GROVE_TREES
 	for n in TREES + GROVE_TREES:
 		var grove := n >= TREES
-		var a := rng.randf_range(0.0, TAU)
-		# Forest climbs to where the rock is too steep; groves stand on the plain.
-		var t := rng.randf_range(PLAIN_FROM + 0.02, 0.95) if grove else rng.randf_range(0.2, PLAIN_FROM)
-		# Trees crowd into the valleys and thin out on the high ridges.
-		if not grove and _climb(t) > 0.45 + 0.9 * _valley(a):
-			t = rng.randf_range(0.5, PLAIN_FROM)
-		# Keep the landing beach open.
-		if grove and absf(wrapf(a - keep_clear_angle, -PI, PI)) < 0.14:
-			a += 0.3
-		var r := coast_radius(a) * t
-		var world := Vector2(position.x + cos(a) * r, position.z + sin(a) * r)
-		var ground := surface_height(world)
-		var size := rng.randf_range(2.6, 3.8) if grove else rng.randf_range(2.0, 4.2)
+		var a := 0.0
+		var r := 0.0
+		var ground := 0.0
+		# Try spots until one suits: groves on the plain, forest wherever the
+		# ground is not too steep, thickest in the wet valleys and thinning
+		# on the open ridges and toward the summits.
+		for attempt in 12:
+			a = rng.randf_range(0.0, TAU)
+			var t := rng.randf_range(PLAIN_FROM + 0.01, 0.95) if grove \
+					else sqrt(rng.randf_range(0.0, PLAIN_FROM * PLAIN_FROM))
+			# Keep the landing beach open.
+			if grove and absf(wrapf(a - keep_clear_angle, -PI, PI)) < 0.14:
+				a += 0.3
+			r = coast_radius(a) * t
+			var x := cos(a) * r
+			var z := sin(a) * r
+			ground = _ground(x, z)
+			if grove:
+				break
+			var liking := 1.15 - 0.55 * _mask(x, z, 0) + 0.6 * _mask(x, z, 2) - ground / 260.0
+			if _steepness(x, z) < 1.25 and rng.randf() < liking:
+				break
+		# Trees are smaller the higher they stand, as they are, and it makes
+		# the mountains look their size.
+		var high := clampf(ground / 150.0, 0.0, 1.0)
+		var size := rng.randf_range(2.6, 3.8) if grove \
+				else rng.randf_range(1.9, 3.4) * lerpf(1.0, 0.45, high)
 		var lift := rng.randf_range(3.5, 5.0) if grove else size * 0.35
 		var shape := Basis.from_euler(Vector3(0.0, rng.randf_range(0.0, TAU), 0.0)) \
 				* Basis.from_scale(Vector3(size, size * rng.randf_range(0.75, 1.15), size))
 		crowns.set_instance_transform(n, Transform3D(shape,
 				Vector3(cos(a) * r, ground + lift, sin(a) * r)))
 		var green := rng.randf_range(0.0, 1.0)
-		var leaf := Color(0.08 + 0.10 * green, 0.22 + 0.16 * green, 0.08 + 0.03 * green)
+		var leaf := Color(0.05 + 0.07 * green, 0.14 + 0.11 * green, 0.045 + 0.02 * green) \
+				.lerp(Color(0.20, 0.31, 0.11), 0.5 * high * green)
 		if grove:
 			leaf = Color(0.13 + 0.10 * green, 0.32 + 0.14 * green, 0.09)
 			trunks.set_instance_transform(n - TREES, Transform3D(
@@ -402,19 +455,7 @@ func _build_surf() -> void:
 
 ## Height of the ground (metres above the sea) at a world (x, z) position.
 func surface_height(world: Vector2) -> float:
-	var offset := world - Vector2(position.x, position.z)
-	var angle := wrapf(offset.angle(), 0.0, TAU)
-	var t := offset.length() / coast_radius(angle)
-	var ring_f := clampf(t / 1.25 * RINGS, 0.0, RINGS - 0.001)
-	var ring := int(ring_f)
-	var f := angle / TAU * MESH_SAMPLES
-	var i := int(f) % MESH_SAMPLES
-	var j := (i + 1) % MESH_SAMPLES
-	var part := f - floorf(f)
-	var inner := lerpf(_heights[ring * MESH_SAMPLES + i], _heights[ring * MESH_SAMPLES + j], part)
-	var outer := lerpf(_heights[(ring + 1) * MESH_SAMPLES + i],
-			_heights[(ring + 1) * MESH_SAMPLES + j], part)
-	return lerpf(inner, outer, ring_f - ring)
+	return _ground(world.x - position.x, world.y - position.z)
 
 
 ## Distance from the island's centre to the waterline along a world bearing
@@ -462,35 +503,23 @@ func _build_palms(palm_seed: int) -> void:
 
 ## A few waterfalls, in the deepest valleys.
 func _build_waterfalls() -> void:
-	var chosen: Array[float] = []
-	for attempt in 3:
-		var best := -1.0
-		var best_angle := 0.0
-		for k in 180:
-			var a := TAU * k / 180.0
-			var clear := true
-			for other in chosen:
-				if absf(wrapf(a - other, -PI, PI)) < 0.9:
-					clear = false
-			if clear and _valley(a) > best:
-				best = _valley(a)
-				best_angle = a
-		chosen.append(best_angle)
-
 	var mat := ShaderMaterial.new()
 	mat.shader = WATERFALL_SHADER
-	for a in chosen:
+	for path: Array in _waterfalls:
+		if path.size() < 3:
+			continue
 		var st := SurfaceTool.new()
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		var across := Vector3(-sin(a), 0.0, cos(a)) * 1.1
-		var steps := 22
 		var fallen := 0.0
 		var last := Vector3.ZERO
-		for n in steps + 1:
-			var t := lerpf(0.2, 0.62, float(n) / steps)
-			var r := coast_radius(a) * t
-			var world := Vector2(position.x + cos(a) * r, position.z + sin(a) * r)
-			var mid := Vector3(cos(a) * r, surface_height(world) + 0.7, sin(a) * r)
+		for n in path.size():
+			var here: Array = path[n]
+			var mid := Vector3(here[0], float(here[1]) + 0.8, here[2])
+			var onward: Array = path[mini(n + 1, path.size() - 1)]
+			var back: Array = path[maxi(n - 1, 0)]
+			var run := Vector3(float(onward[0]) - float(back[0]), 0.0,
+					float(onward[2]) - float(back[2]))
+			var across := Vector3(-run.z, 0.0, run.x).normalized() * 1.3
 			if n > 0:
 				fallen += mid.distance_to(last)
 			last = mid
@@ -498,7 +527,7 @@ func _build_waterfalls() -> void:
 			st.add_vertex(mid - across)
 			st.set_uv(Vector2(1.0, fallen))
 			st.add_vertex(mid + across)
-		for n in steps:
+		for n in path.size() - 1:
 			var p := n * 2
 			for index: int in [0, 1, 3, 0, 3, 2]:
 				st.add_index(p + index)
@@ -656,29 +685,3 @@ func _post(parent: Node3D, pos: Vector3, height: float, radius: float,
 	inst.position = pos
 	parent.add_child(inst)
 	return inst
-
-
-## The colour of the land: sand at the water, bright groves on the plain,
-## dark forest in the valleys, paler fern higher up, bare rock on the crests.
-func _land_color(a: float, t: float, x: float, z: float) -> Color:
-	var patchy := _noise.get_noise_2d(x * 3.0, z * 3.0 - 700.0)
-	if t > 1.0:
-		return Color(0.55, 0.60, 0.45)   # shallows
-	if t > 0.965:
-		# Black volcanic sand on most beaches, pale coral sand on some.
-		var pale := smoothstep(0.1, 0.3, _noise.get_noise_2d(cos(a) * 90.0 - 300.0, sin(a) * 90.0))
-		return Color(0.17, 0.16, 0.16).lerp(Color(0.80, 0.74, 0.58), pale)
-	if t >= PLAIN_FROM:
-		return Color(0.26, 0.44, 0.17).lerp(Color(0.36, 0.50, 0.20), 0.5 + 0.5 * patchy)
-	var m := _climb(t)
-	var valley := _valley(a)
-	var green := Color(0.12, 0.30, 0.12).lerp(Color(0.30, 0.42, 0.18), smoothstep(0.25, 0.65, m))
-	green = green.darkened(0.3 * smoothstep(0.12, 0.35, valley))
-	var bare := smoothstep(0.6, 0.92, m) + 0.6 * (1.0 - smoothstep(0.0, 0.1, valley)) * m
-	var land := green.lerp(Color(0.34, 0.31, 0.28).lerp(Color(0.46, 0.42, 0.38), 0.5 + 0.5 * patchy),
-			clampf(bare, 0.0, 1.0))
-	# Paint the form in: valleys in shadow, ridge crests catching the light.
-	# This is what a painter does so that a mountain reads in any weather.
-	var depth := smoothstep(0.08, 0.34, valley) * sin(PI * clampf(m * 1.15, 0.0, 1.0))
-	var crest := (1.0 - smoothstep(0.0, 0.07, valley)) * smoothstep(0.1, 0.5, m)
-	return land.darkened(0.45 * depth).lightened(0.22 * crest)

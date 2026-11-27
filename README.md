@@ -221,6 +221,8 @@ Systems are kept separate so each can be swapped:
 | `scripts/ship.gd` | Ship movement from wind, sail and rudder |
 | `scripts/control_mode.gd`, `orders_mode.gd` | How the ship is steered (giving orders) |
 | `scripts/island.gd` | The island: land, trees, villages, the fort, and its coastline |
+| `tools/make_island.py`, `terrain/` | Makes the island's ground by wearing a volcano down with rivers, and the height, light and water maps it saves. Run the tool again to change the island (needs numpy, scipy, numba). |
+| `shaders/terrain.gdshader` | Paints the ground by rule from slope, height, wetness and baked light |
 | `scripts/canoes.gd` | Canoes out on the water |
 | `scripts/seabed.gd` | Water depth and hidden reefs |
 | `scripts/lead_line.gd`, `lead_gauge.gd` | Heaving the lead, and the timing gauge |

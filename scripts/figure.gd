@@ -92,7 +92,7 @@ var lying: bool = false       ## laid in a hammock
 ## body moves by recorded clips (idle, walk, talk and so on), not by the
 ## named poses: each pose is mapped to the nearest clip it has.
 var model_path: String = ""
-## What a modelled body does when left alone: "idle", or "look" to have it
+## What a modelled body does when left alone: "idle", "sit", or "look" to have it
 ## keep looking about, as a lookout does.
 var idle_clip: String = "idle"
 var model_tint := Color(1.0, 1.0, 1.0)   ## a wash of colour over a modelled body
@@ -249,7 +249,9 @@ func _build_from_model() -> bool:
 			if key == "reset":
 				continue
 			_player.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
-			if key.contains("walk"):
+			if key.contains("sit"):
+				_clips["sit"] = clip
+			elif key.contains("walk"):
 				_clips["walk"] = clip
 			elif key.contains("talk") or key.contains("chat"):
 				_clips["talk"] = clip
@@ -261,6 +263,9 @@ func _build_from_model() -> bool:
 				_clips["idle"] = clip
 	if _clips.has("climb"):
 		_hold_hips_still(_clips["climb"])
+	for purpose: String in ["talk", "sit"]:
+		if _clips.has(purpose):
+			_centre_hips(_clips[purpose])
 	_standing = idle_clip
 	_play_clip(_standing)
 	return true
@@ -282,6 +287,29 @@ func _hold_hips_still(clip: String) -> void:
 		var start: Vector3 = animation.track_get_key_value(track, 0)
 		for key in animation.track_get_key_count(track):
 			animation.track_set_key_value(track, key, start)
+
+
+## Some clips were recorded with the body standing or sitting a step away
+## from where it started. This slides such a clip back, so that the body is
+## over the spot the figure has been put on.
+func _centre_hips(clip: String) -> void:
+	var animation := _player.get_animation(clip)
+	for track in animation.get_track_count():
+		if animation.track_get_type(track) != Animation.TYPE_POSITION_3D:
+			continue
+		if not String(animation.track_get_path(track)).ends_with(":Hips"):
+			continue
+		var keys := animation.track_get_key_count(track)
+		if keys == 0:
+			continue
+		var middle := Vector3.ZERO
+		for key in keys:
+			middle += animation.track_get_key_value(track, key) as Vector3
+		middle /= keys
+		middle.y = 0.0
+		for key in keys:
+			var value: Vector3 = animation.track_get_key_value(track, key)
+			animation.track_set_key_value(track, key, value - middle)
 
 
 ## Starts the recorded clip for a purpose ("idle", "walk", "talk", ...),
